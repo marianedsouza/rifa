@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consultar participação</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <div class="header-logo"><img src="/img/logo-default.png" alt=""><span class="header-name">Rifa com Causa</span></div>
+      <div class="header-actions"><a href="/" class="btn sm ghost">← Voltar</a></div>
+    </div>
+  </header>
+
+  <section class="section">
+    <div class="container" style="max-width:720px">
+      <h1 style="color:var(--c-primary);font-size:clamp(24px,3vw,32px);text-align:center">Consultar minha participação</h1>
+      <p style="text-align:center;opacity:.7;margin:10px 0 24px">Pesquise pelo seu CPF ou pelo código da participação (enviado no comprovante).</p>
+
+      <div class="progress-card" style="padding:28px">
+        <div class="field" style="margin-bottom:12px">
+          <label>CPF</label>
+          <input id="qCPF" placeholder="000.000.000-00" oninput="maskCPF(this)" maxlength="14">
+        </div>
+        <div style="text-align:center;opacity:.5;font-size:13px;margin:6px 0">ou</div>
+        <div class="field">
+          <label>Código da participação</label>
+          <input id="qCode" placeholder="Ex: PED-XXXXXX">
+        </div>
+        <button class="btn block mt-16" onclick="consultar()">🔍 Consultar</button>
+      </div>
+
+      <div id="result" class="mt-24"></div>
+    </div>
+  </section>
+
+  <script src="/js/common.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const rifa = params.get('rifa');
+
+    function maskCPF(el) {
+      let v = el.value.replace(/\D/g, '').slice(0, 11);
+      if (v.length > 9) v = v.slice(0,3) + '.' + v.slice(3,6) + '.' + v.slice(6,9) + '-' + v.slice(9);
+      else if (v.length > 6) v = v.slice(0,3) + '.' + v.slice(3,6) + '.' + v.slice(6);
+      else if (v.length > 3) v = v.slice(0,3) + '.' + v.slice(3);
+      el.value = v;
+    }
+
+    async function consultar() {
+      const cpf = document.getElementById('qCPF').value.replace(/\D/g, '');
+      const code = document.getElementById('qCode').value.trim();
+      if (!cpf && !code) { flash('Informe o CPF ou o código da participação'); return; }
+      const el = document.getElementById('result');
+      el.innerHTML = '<div class="center"><span class="spinner" style="display:inline-block;width:28px;height:28px"></span></div>';
+      try {
+        let url = '/api/public/rifa/' + (rifa || '') + '/consulta';
+        if (rifa) {
+          const j = await API.post(url, { cpf, code });
+          render(el, j);
+        } else {
+          const rifas = await API.get('/api/public/rifas');
+          let found = [];
+          for (const r of rifas) {
+            try {
+              const j = await API.post('/api/public/rifa/' + r.slug + '/consulta', { cpf, code });
+              found = found.concat(j.results.map(x => ({ ...x, rifaName: r.name, rifaSlug: r.slug })));
+            } catch (e) {}
+          }
+          render(el, { found: found.length > 0, results: found });
+        }
+      } catch (e) {
+        el.innerHTML = '<div class="alert">' + escapeHtml(e.message) + '</div>';
+      }
+    }
+
+    function render(el, j) {
+      if (!j.found) {
+        el.innerHTML = '<div class="notice">Nenhuma participação encontrada com esses dados. Verifique se digitou corretamente ou se o pagamento foi confirmado.</div>';
+        return;
+      }
+      el.innerHTML = j.results.map(x => {
+        const o = x.order, nums = x.numbers, pay = x.payment;
+        const statusClass = o.status === 'approved' ? 'approved' : (o.status === 'pending' ? 'pending' : 'expired');
+        return `
+          <div class="progress-card" style="margin-bottom:16px">
+            <div class="receipt-head">
+              <div><b>${escapeHtml(x.rifaName || 'Rifa')}</b><br><small style="color:var(--c-primary)">Participação: ${escapeHtml(o.code)}</small></div>
+              <div style="margin-left:auto"><span class="badge-status ${statusClass}">${escapeHtml(o.status)}</span></div>
+            </div>
+            <div class="summary">
+              <div class="row"><span>Números</span><span class="nums" style="justify-content:flex-end">${nums.map(n => '<span class="num-chip">' + padNum(n.number, 300) + '</span>').join('')}</span></div>
+              <div class="row"><span>Valor</span><b>${money(o.total)}</b></div>
+              <div class="row"><span>Pagamento</span><span>${pay ? escapeHtml(pay.method) + ' · ' + escapeHtml(pay.status) : '—'}</span></div>
+              <div class="row"><span>Data</span><span>${escapeHtml(o.created_at)}</span></div>
+            </div>
+            ${o.status === 'pending' ? '<p class="hint" style="font-size:12px;opacity:.7;margin-top:10px">Pagamento ainda não confirmado. Aguarde ou entre em contato com a organização.</p>' : ''}
+          </div>`;
+      }).join('');
+    }
+
+    function flash(msg) {
+      const div = document.createElement('div');
+      div.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:12px 22px;border-radius:50px;z-index:300;font-weight:600';
+      div.textContent = msg;
+      document.body.appendChild(div);
+      setTimeout(() => div.remove(), 3500);
+    }
+  </script>
+</body>
+</html>

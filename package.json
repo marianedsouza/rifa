@@ -1,0 +1,15 @@
+{
+  "name": "rifa-platforma",
+  "version": "1.0.0",
+  "description": "Plataforma de rifas por números com causa e identidade visual personalizada",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node scripts/seed.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4"
+  }
+}

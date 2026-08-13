@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rifa com Causa</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body style="background:#faf9f7">
+  <header class="site-header">
+    <div class="container">
+      <div class="header-logo">
+        <img src="/img/logo-default.png" alt="">
+        <span class="header-name">Rifa com Causa</span>
+      </div>
+      <div class="header-actions">
+        <a href="/admin" class="btn sm ghost">Área administrativa</a>
+        <a href="#rifas" class="btn sm">Participar</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <div>
+        <div class="hero-badge">💙 Rifas com propósito</div>
+        <h1>Participe de rifas que transformam vidas</h1>
+        <p class="subtitle">Cada rifa apoia uma causa real: instituições, projetos sociais e campanhas. Ao participar, você concorre a prêmios incríveis e ajuda quem precisa.</p>
+        <div class="hero-cta">
+          <a href="#rifas" class="btn accent" style="font-size:18px;padding:16px 34px">🎟️ Ver rifas disponíveis</a>
+        </div>
+      </div>
+      <div class="hero-prize">
+        <div style="font-size:140px">🎁</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="rifas">
+    <div class="container">
+      <h2 class="section-title">Rifas ativas</h2>
+      <p class="section-sub">Escolha uma causa, participe e receba seu comprovante na hora.</p>
+      <div id="rifaList">
+        <div class="skeleton" style="height:200px"></div>
+        <div class="skeleton mt-16" style="height:200px"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="background:var(--c-secondary)">
+    <div class="container">
+      <h2 class="section-title">Como funciona</h2>
+      <div class="steps">
+        <div class="step"><span class="n">1</span><b>Escolha a causa</b><span>Veja a rifa que mais combina com você</span></div>
+        <div class="step"><span class="n">2</span><b>Escolha números</b><span>Selecione seus números da sorte</span></div>
+        <div class="step"><span class="n">3</span><b>Pague via PIX</b><span>Rápido, seguro e sem complicação</span></div>
+        <div class="step"><span class="n">4</span><b>Receba o comprovante</b><span>Participação confirmada na hora</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <h2 class="section-title">Sua participação importa</h2>
+      <div class="cause-grid">
+        <div class="cause-box">
+          <h3>Transparência</h3>
+          <p>Cada rifa apresenta a causa, o objetivo, quem será beneficiado e como os recursos serão utilizados.</p>
+        </div>
+        <div class="cause-box">
+          <h3>Segurança</h3>
+          <p>Pagamentos via PIX com confirmação, reserva temporária de números e comprovante digital.</p>
+        </div>
+        <div class="cause-box">
+          <h3>Sorteio justo</h3>
+          <p>Somente números com pagamento confirmado participam do sorteio. Resultado público e auditável.</p>
+        </div>
+        <div class="cause-box">
+          <h3>Propósito</h3>
+          <p>Participar é ajudar: cada número vendido vira recurso para uma causa real.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div style="display:flex;align-items:center;gap:12px">
+        <img src="/img/logo-default.png" alt="">
+        <div><b>Rifa com Causa</b><br><small>Plataforma de campanhas com propósito</small></div>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center">
+        <a href="/pages/consulta.html" style="color:#fff;font-size:13px">Consultar participação</a>
+        <a href="/admin" style="color:#fff;font-size:13px">Área administrativa</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/common.js"></script>
+  <script>
+    async function loadRifas() {
+      try {
+        const rifas = await API.get('/api/public/rifas');
+        const el = document.getElementById('rifaList');
+        if (!rifas.length) {
+          el.innerHTML = '<div class="empty">Nenhuma rifa ativa no momento. Volte em breve!</div>';
+          return;
+        }
+        el.innerHTML = rifas.map(r => {
+          const pct = Math.round((r.sold / r.total) * 100);
+          return `
+          <a href="/r/${r.slug}" style="text-decoration:none;color:inherit;display:block;margin-bottom:16px">
+            <div class="progress-card">
+              <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+                <div style="width:110px;height:90px;border-radius:12px;overflow:hidden;background:${r.visual.primary_color};display:flex;align-items:center;justify-content:center">
+                  ${r.prize_image ? '<img src="' + r.prize_image + '" style="width:100%;height:100%;object-fit:cover">' : '<span style="color:#fff;font-size:30px">🎁</span>'}
+                </div>
+                <div style="flex:1;min-width:220px">
+                  <div style="font-weight:800;font-size:18px;color:${r.visual.primary_color}">${escapeHtml(r.name)}</div>
+                  <div style="font-size:14px;opacity:.8">Prêmio: ${escapeHtml(r.prize_name)}</div>
+                  <div style="font-size:13px;opacity:.65">Apoiando: ${escapeHtml(r.cause_name)}</div>
+                  <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
+                    <span style="font-weight:800">${money(r.price)}</span>
+                    <span style="opacity:.7">${r.sold}/${r.total} vendidos</span>
+                    <span style="opacity:.7">Sorteio: ${formatDate(r.draw_date)}</span>
+                  </div>
+                </div>
+                <div style="width:180px">
+                  <div class="progress-track" style="height:10px;background:rgba(0,0,0,.08)"><div class="progress-fill" style="width:${pct}%;background:${r.visual.primary_color}"></div></div>
+                  <div style="font-size:12px;opacity:.7;margin-top:6px;text-align:center">${pct}% vendido</div>
+                </div>
+                <span class="btn" style="background:${r.visual.primary_color}">Participar</span>
+              </div>
+            </div>
+          </a>`;
+        }).join('');
+      } catch (e) {
+        document.getElementById('rifaList').innerHTML = '<div class="alert">' + escapeHtml(e.message) + '</div>';
+      }
+    }
+    loadRifas();
+  </script>
+</body>
+</html>
