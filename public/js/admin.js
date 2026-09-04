@@ -1383,4 +1383,5 @@ async function viewLogs() {
 
 /* ---------- init ---------- */
 $('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+$$('.sidebar nav button').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
 init();
