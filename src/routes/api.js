@@ -63,6 +63,26 @@ async function generateNumbers(rifaId, qty) {
   await db.runBatch(stmts);
 }
 
+// Expiração "lazy": libera reservas vencidas de UMA rifa no momento do acesso.
+// Substitui a dependência de um cron frequente (indisponível no plano Hobby).
+// É idempotente e barata: só age se houver reservas realmente vencidas.
+async function expireReservationsForRifa(rifaId) {
+  const nowIso = new Date().toISOString();
+  const rows = await db.prepare(`
+    SELECT id FROM orders
+    WHERE rifa_id=? AND status='pending' AND expires_at IS NOT NULL AND expires_at < ?
+  `).all(rifaId, nowIso);
+  if (!rows.length) return 0;
+  const stmts = [];
+  for (const o of rows) {
+    stmts.push({ sql: "UPDATE rifa_numeros SET status='available', order_id=NULL, participant_id=NULL, sold_at=NULL WHERE order_id=?", args: [o.id] });
+    stmts.push({ sql: "UPDATE orders SET status='expired', updated_at=datetime('now') WHERE id=?", args: [o.id] });
+    stmts.push({ sql: "UPDATE payments SET status='expired' WHERE order_id=? AND status='pending'", args: [o.id] });
+  }
+  await db.runBatch(stmts);
+  return rows.length;
+}
+
 async function getRifaNumbers(rifaId, filters = {}) {
   let sql = 'SELECT * FROM rifa_numeros WHERE rifa_id=?';
   const params = [rifaId];
@@ -119,6 +139,7 @@ router.get('/public/rifas', h(async (req, res) => {
   const rifas = await db.prepare("SELECT * FROM rifas WHERE status='active' ORDER BY created_at DESC").all();
   const withVis = [];
   for (const r of rifas) {
+    await expireReservationsForRifa(r.id);
     const vis = await ensureVisual(r.id);
     const st = await numberStats(r.id);
     withVis.push({
@@ -136,6 +157,7 @@ router.get('/public/rifas', h(async (req, res) => {
 router.get('/public/rifa/:slug', h(async (req, res) => {
   const r = await db.prepare('SELECT * FROM rifas WHERE slug=?').get(req.params.slug);
   if (!r) return res.status(404).json({ error: 'Rifa não encontrada' });
+  await expireReservationsForRifa(r.id);
   const vis = await ensureVisual(r.id);
   const stats = await numberStats(r.id);
   const d = await drawResult(r.id);
@@ -153,6 +175,7 @@ router.get('/public/rifa/:slug', h(async (req, res) => {
 router.get('/public/rifa/:slug/numeros', h(async (req, res) => {
   const r = await db.prepare('SELECT * FROM rifas WHERE slug=?').get(req.params.slug);
   if (!r) return res.status(404).json({ error: 'Rifa não encontrada' });
+  await expireReservationsForRifa(r.id);
   const nums = await getRifaNumbers(r.id, {
     status: req.query.status || 'all',
     q: req.query.q || ''
@@ -214,6 +237,7 @@ router.post('/public/rifa/:slug/reserve', h(async (req, res) => {
   const r = await db.prepare('SELECT * FROM rifas WHERE slug=?').get(req.params.slug);
   if (!r) return res.status(404).json({ error: 'Rifa não encontrada' });
   if (r.status !== 'active') return res.status(400).json({ error: 'Esta rifa não está ativa' });
+  await expireReservationsForRifa(r.id);
   const body = req.body || {};
   const numbers = Array.isArray(body.numbers) ? [...new Set(body.numbers.map(n => parseInt(n)).filter(n => Number.isInteger(n)))] : [];
   if (!numbers.length) return res.status(400).json({ error: 'Selecione ao menos um número' });

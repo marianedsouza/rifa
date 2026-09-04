@@ -15,6 +15,6 @@
     { "source": "/resultado/(.*)", "destination": "/api/index" }
   ],
   "crons": [
-    { "path": "/api/cron/expire", "schedule": "*/1 * * * *" }
+    { "path": "/api/cron/expire", "schedule": "0 3 * * *" }
   ]
 }
