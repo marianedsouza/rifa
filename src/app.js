@@ -4,12 +4,29 @@ const api = require('./routes/api');
 const db = require('./db');
 const { seedDatabase } = require('./seed');
 
+const fs = require('fs');
+
 const app = express();
 
 app.use(express.json({ limit: '25mb' }));
 
-// Arquivos estáticos do front-end
-const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+// Resolve a pasta public/ de forma robusta: funciona tanto localmente
+// (__dirname/../public) quanto no bundle serverless da Vercel (cwd/public).
+function resolvePublicDir() {
+  const candidates = [
+    path.join(__dirname, '..', 'public'),
+    path.join(process.cwd(), 'public'),
+  ];
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, 'index.html'))) return dir;
+  }
+  return candidates[0];
+}
+const PUBLIC_DIR = resolvePublicDir();
+
+// Arquivos estáticos do front-end. Na Vercel os assets também são servidos
+// diretamente via "handle: filesystem", este static cobre o ambiente local
+// e serve como fallback.
 app.use(express.static(PUBLIC_DIR));
 
 // Garante que o schema exista antes de qualquer rota da API (idempotente).
@@ -30,8 +47,6 @@ app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'admin.html')));
 app.get('/r/:slug', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'rifa.html')));
 app.get('/resultado/:slug', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'resultado.html')));
-
-app.use('/api', api);
 
 // Endpoint de inicialização/seed do banco (usar uma vez após o deploy).
 // Protegido por SEED_TOKEN: chame /api/seed?token=SEU_TOKEN
@@ -59,6 +74,8 @@ app.get('/api/cron/expire', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+app.use('/api', api);
 
 app.use((req, res) => res.status(404).json({ error: 'Não encontrado' }));
 

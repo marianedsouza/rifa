@@ -27,8 +27,12 @@ function publicUser(u) {
 
 async function requireAuth(req, res, next) {
   try {
-    const h = req.headers.authorization || '';
-    const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+    const hdr = req.headers.authorization || '';
+    // Aceita token no header Authorization (padrão) ou via query string (?token=),
+    // necessário para downloads abertos com window.open (relatórios CSV).
+    const token = hdr.startsWith('Bearer ')
+      ? hdr.slice(7)
+      : (req.query && req.query.token ? String(req.query.token) : null);
     const payload = token ? verify(token) : null;
     if (!payload) return res.status(401).json({ error: 'Não autenticado' });
     const user = await db.prepare('SELECT * FROM users WHERE id=?').get(payload.uid);

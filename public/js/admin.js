@@ -1221,7 +1221,10 @@ async function viewRelatorios() {
 
 function exportReport(type) {
   const rid = $('#repRifa')?.value || '';
-  window.open('/api/admin/reports/' + type + (rid ? '?rifa_id=' + rid : ''), '_blank');
+  const params = [];
+  if (rid) params.push('rifa_id=' + rid);
+  if (TOKEN) params.push('token=' + encodeURIComponent(TOKEN));
+  window.open('/api/admin/reports/' + type + (params.length ? '?' + params.join('&') : ''), '_blank');
 }
 
 /* ================= USUÁRIOS ================= */

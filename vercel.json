@@ -1,18 +1,16 @@
 {
   "version": 2,
-  "buildCommand": null,
   "installCommand": "npm install",
   "functions": {
     "api/index.js": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "public/**"
     }
   },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/", "destination": "/api/index" },
-    { "source": "/admin", "destination": "/api/index" },
-    { "source": "/r/(.*)", "destination": "/api/index" },
-    { "source": "/resultado/(.*)", "destination": "/api/index" }
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/api/(.*)", "dest": "/api/index" },
+    { "src": "/(.*)", "dest": "/api/index" }
   ],
   "crons": [
     { "path": "/api/cron/expire", "schedule": "0 3 * * *" }
