@@ -108,16 +108,17 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ''));
 }
 
-function saveBase64Image(dataUrl, folder) {
+// No ambiente serverless (Vercel) não há disco persistente para gravar arquivos.
+// As imagens são validadas e devolvidas como data URL (base64), que é salva
+// diretamente no banco (campos TEXT) e usada tal e qual pelo front-end.
+function saveBase64Image(dataUrl, _folder) {
   const m = String(dataUrl).match(/^data:([a-zA-Z0-9.\/+\-]+);base64,(.+)$/);
   if (!m) return '';
-  const extMap = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
-  const ext = extMap[m[1]] || 'png';
-  const name = genUid() + '.' + ext;
-  const dir = path.join(__dirname, '..', 'uploads', folder || '');
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, name), Buffer.from(m[2], 'base64'));
-  return '/' + (folder ? folder + '/' : '') + name;
+  const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+  if (!allowed.includes(m[1])) return '';
+  // Limite defensivo de tamanho (~6MB em base64 ≈ 4.5MB de imagem)
+  if (m[2].length > 8 * 1024 * 1024) return '';
+  return dataUrl;
 }
 
 function padNumber(num, qty) {

@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "buildCommand": null,
+  "installCommand": "npm install",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/", "destination": "/api/index" },
+    { "source": "/admin", "destination": "/api/index" },
+    { "source": "/r/(.*)", "destination": "/api/index" },
+    { "source": "/resultado/(.*)", "destination": "/api/index" }
+  ],
+  "crons": [
+    { "path": "/api/cron/expire", "schedule": "*/1 * * * *" }
+  ]
+}

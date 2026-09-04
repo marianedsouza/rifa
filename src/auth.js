@@ -25,15 +25,19 @@ function publicUser(u) {
   return { id: u.id, name: u.name, email: u.email, role: u.role };
 }
 
-function requireAuth(req, res, next) {
-  const h = req.headers.authorization || '';
-  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
-  const payload = token ? verify(token) : null;
-  if (!payload) return res.status(401).json({ error: 'Não autenticado' });
-  const user = db.prepare('SELECT * FROM users WHERE id=?').get(payload.uid);
-  if (!user || !user.active) return res.status(401).json({ error: 'Usuário inválido' });
-  req.user = user;
-  next();
+async function requireAuth(req, res, next) {
+  try {
+    const h = req.headers.authorization || '';
+    const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+    const payload = token ? verify(token) : null;
+    if (!payload) return res.status(401).json({ error: 'Não autenticado' });
+    const user = await db.prepare('SELECT * FROM users WHERE id=?').get(payload.uid);
+    if (!user || !user.active) return res.status(401).json({ error: 'Usuário inválido' });
+    req.user = user;
+    next();
+  } catch (e) {
+    next(e);
+  }
 }
 
 function requireRole(...roles) {
@@ -43,10 +47,15 @@ function requireRole(...roles) {
   };
 }
 
-function logAction(userId, action, details) {
-  db.prepare('INSERT INTO logs (user_id, action, details) VALUES (?,?,?)').run(
-    userId || null, action, JSON.stringify(details || {})
-  );
+async function logAction(userId, action, details) {
+  try {
+    await db.prepare('INSERT INTO logs (user_id, action, details) VALUES (?,?,?)').run(
+      userId || null, action, JSON.stringify(details || {})
+    );
+  } catch (e) {
+    // logging não deve derrubar a requisição
+    console.error('[logAction] erro:', e.message);
+  }
 }
 
 module.exports = { sign, verify, requireAuth, requireRole, publicUser, logAction };

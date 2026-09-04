@@ -1,17 +1,121 @@
-const { DatabaseSync } = require('node:sqlite');
-const path = require('path');
-const fs = require('fs');
+const { createClient } = require('@libsql/client');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+// Suporta tanto os nomes usados no .env (rifa_TURSO_*) quanto os padrões TURSO_*
+const URL =
+  process.env.TURSO_DATABASE_URL ||
+  process.env.rifa_TURSO_DATABASE_URL ||
+  '';
+const AUTH_TOKEN =
+  process.env.TURSO_AUTH_TOKEN ||
+  process.env.rifa_TURSO_AUTH_TOKEN ||
+  '';
 
-const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'rifa.db');
-const db = new DatabaseSync(DB_PATH);
+if (!URL) {
+  throw new Error(
+    'TURSO_DATABASE_URL não configurada. Defina TURSO_DATABASE_URL (ou rifa_TURSO_DATABASE_URL) nas variáveis de ambiente.'
+  );
+}
 
-db.exec('PRAGMA journal_mode = WAL;');
-db.exec('PRAGMA foreign_keys = ON;');
+const client = createClient({
+  url: URL,
+  authToken: AUTH_TOKEN || undefined,
+});
 
-db.exec(`
+/*
+ * Camada de compatibilidade.
+ *
+ * O código legado usava a API síncrona do node:sqlite:
+ *   db.prepare(sql).get(...args)   -> uma linha
+ *   db.prepare(sql).all(...args)   -> várias linhas
+ *   db.prepare(sql).run(...args)   -> { lastInsertRowid, changes }
+ *   db.exec(sqlOuComando)          -> executa SQL cru
+ *
+ * O libSQL/Turso é sempre assíncrono, então get/all/run/exec agora
+ * retornam Promises e devem ser usados com await.
+ */
+
+function normalizeArgs(args) {
+  // Aceita tanto .get(a, b, c) quanto .get([a, b, c])
+  if (args.length === 1 && Array.isArray(args[0])) return args[0];
+  return args;
+}
+
+function prepare(sql) {
+  return {
+    async get(...args) {
+      const rs = await client.execute({ sql, args: normalizeArgs(args) });
+      return rs.rows.length ? rowToObject(rs.rows[0]) : undefined;
+    },
+    async all(...args) {
+      const rs = await client.execute({ sql, args: normalizeArgs(args) });
+      return rs.rows.map(rowToObject);
+    },
+    async run(...args) {
+      const rs = await client.execute({ sql, args: normalizeArgs(args) });
+      return {
+        lastInsertRowid:
+          rs.lastInsertRowid != null ? Number(rs.lastInsertRowid) : undefined,
+        changes: rs.rowsAffected,
+      };
+    },
+  };
+}
+
+// As rows do libSQL são objetos "array-like" com getters por coluna.
+// Convertendo para objeto simples para o resto do código funcionar igual.
+function rowToObject(row) {
+  const obj = {};
+  for (const key of Object.keys(row)) obj[key] = row[key];
+  return obj;
+}
+
+// Executa SQL cru. Aceita múltiplos statements separados por ';'.
+async function exec(sql) {
+  const statements = splitStatements(sql);
+  if (statements.length <= 1) {
+    await client.execute(sql);
+    return;
+  }
+  // batch em modo sequencial mantém a ordem sem transação implícita agressiva
+  await client.batch(statements, 'write');
+}
+
+function splitStatements(sql) {
+  return String(sql)
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/*
+ * Transações: no libSQL serverless não usamos BEGIN/COMMIT interativos.
+ * Em vez disso, agrupamos os comandos numa lista e chamamos runBatch(),
+ * que executa tudo atomicamente (equivalente a uma transação).
+ *
+ * Uso:
+ *   await runBatch([
+ *     { sql: '...', args: [...] },
+ *     { sql: '...', args: [...] },
+ *   ]);
+ */
+async function runBatch(statements) {
+  const stmts = statements.map((s) =>
+    typeof s === 'string' ? { sql: s, args: [] } : { sql: s.sql, args: s.args || [] }
+  );
+  return client.batch(stmts, 'write');
+}
+
+let schemaReady = null;
+async function ensureSchema() {
+  if (schemaReady) return schemaReady;
+  schemaReady = (async () => {
+    const statements = splitStatements(SCHEMA_SQL);
+    await client.batch(statements, 'write');
+  })();
+  return schemaReady;
+}
+
+const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -183,6 +287,6 @@ CREATE TABLE IF NOT EXISTS art_templates (
   config TEXT DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-`);
+`;
 
-module.exports = db;
+module.exports = { client, prepare, exec, runBatch, ensureSchema };
