@@ -221,6 +221,7 @@ async function viewRifas() {
             <td>
               <a class="btn sm outline" href="/r/${r.slug}" target="_blank">Ver</a>
               <button class="btn sm outline" onclick="go('rifa',${r.id})">Gerenciar</button>
+              ${USER.role === 'super_admin' ? `<button class="btn sm danger" onclick="deleteRifa(${r.id})">Excluir</button>` : ''}
             </td>
           </tr>`).join('') || '<tr><td colspan="8"><div class="empty">Nenhuma rifa criada ainda</div></td></tr>'}
         </tbody>
@@ -646,12 +647,15 @@ async function saveRifa(id) {
 }
 
 async function deleteRifa(id) {
-  if (!confirm('Excluir esta rifa permanentemente?')) return;
+  if (!confirm('Excluir esta rifa permanentemente? Esta ação não pode ser desfeita.')) return;
   try {
     await apiDel('/api/admin/rifas/' + id);
     toast('Rifa excluída');
     go('rifas');
-  } catch (e) { toast(e.message); }
+    viewRifas();
+  } catch (e) {
+    toast(e.message || 'Não foi possível excluir a rifa');
+  }
 }
 
 /* ---- Identidade visual ---- */
