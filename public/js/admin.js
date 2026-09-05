@@ -577,8 +577,11 @@ async function viewRifaTab(id, tab) {
 }
 
 /* ---- Geral (editar rifa) ---- */
+let editPrize = { original: '', picked: '' };
+
 async function editRifaForm(id, el) {
   const r = await apiGet('/api/admin/rifas/' + id);
+  editPrize = { original: r.prize_image || '', picked: '' };
   el.innerHTML = `
     <div class="panel">
       <div class="head"><h3>Dados da rifa</h3></div>
@@ -616,13 +619,31 @@ async function editRifaForm(id, el) {
         <div class="field"><label>Contato</label><input id="eContact" value="${esc(r.contact)}"></div>
         <div class="field"><label>Tempo de reserva (min)</label><input id="eReserve" type="number" min="1" value="${r.reserve_minutes}"></div>
         <div class="field full"><label>Regulamento</label><textarea id="eRules" style="min-height:160px">${esc(r.rules)}</textarea></div>
-        <div class="field full"><label>Imagem do prêmio</label>${imageUploadBox('ePrizeImg', r.prize_image, 'prizes', 'Escolher imagem do prêmio')}</div>
+        <div class="field full"><label>Imagem do prêmio</label>
+          <div class="upload-box" onclick="document.getElementById('ePrizeImgInput').click()">
+            <img id="ePrizeImgImg" src="${editPrize.original || '/img/prize-default.png'}" style="max-height:120px">
+            <input type="file" id="ePrizeImgInput" accept="image/*" style="display:none" onchange="editUploadPrizeImage(event)">
+            <div style="font-size:12px;color:var(--muted)">Escolher imagem do prêmio / substituir</div>
+          </div>
+        </div>
       </div>
       <div class="flex mt">
         <button class="btn primary" onclick="saveRifa(${id})">Salvar alterações</button>
         ${USER.role === 'super_admin' ? '<button class="btn danger" onclick="deleteRifa(' + id + ')">Excluir rifa</button>' : ''}
       </div>
     </div>`;
+}
+
+async function editUploadPrizeImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const path = await uploadImage(file, 'prizes');
+    editPrize.picked = path;
+    const img = $('ePrizeImgImg');
+    if (img) img.src = path;
+    toast('Imagem do prêmio carregada. Salve as alterações para aplicar.');
+  } catch (err) { toast(err.message); }
 }
 
 async function saveRifa(id) {
@@ -632,13 +653,12 @@ async function saveRifa(id) {
     cause_subtitle: g('eCauseSub'), cause_short: g('eCauseShort'), cause_long: g('eCauseLong'),
     cause_objective: g('eCauseObj'), cause_benefited: g('eCauseBen'), cause_use_of_resources: g('eCauseUse'),
     org_name: g('eOrgName'), org_site: g('eOrgSite'), org_instagram: g('eOrgIg'), org_whatsapp: g('eOrgWa'), org_email: g('eOrgEmail'),
-    prize_name: g('ePrizeName'), prize_desc: g('ePrizeDesc'), prize_image: $('#ePrizeImg') ? ($('#ePrizeImg').src || '') : '',
+    prize_name: g('ePrizeName'), prize_desc: g('ePrizeDesc'),
+    prize_image: editPrize.picked || editPrize.original || '',
     price: Number(g('ePrice')), qty: Number(g('eQty')), status: g('eStatus'),
     start_date: g('eStart'), end_date: g('eEnd'), draw_date: g('eDrawDate'), draw_location: g('eDrawLoc'),
     responsible: g('eResp'), contact: g('eContact'), reserve_minutes: Number(g('eReserve')), rules: g('eRules')
   };
-  const prizeImg = $('#ePrizeImg');
-  if (prizeImg) body.prize_image = prizeImg.src || '';
   try {
     await apiPut('/api/admin/rifas/' + id, body);
     toast('Alterações salvas!');
