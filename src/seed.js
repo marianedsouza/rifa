@@ -120,7 +120,10 @@ async function seedDatabase() {
 
   await db.runBatch([
     { sql: 'INSERT INTO settings (key, value) VALUES (?,?)', args: ['platform_name', 'Rifa com Causa'] },
-    { sql: 'INSERT INTO settings (key, value) VALUES (?,?)', args: ['pix_key', 'contato@institutonovohorizonte.org'] },
+    { sql: 'INSERT INTO settings (key, value) VALUES (?,?)', args: ['pix_key', 'pixinstitutonh@gmail.com'] },
+    { sql: 'INSERT INTO settings (key, value) VALUES (?,?)', args: ['pix_type', 'email'] },
+    { sql: 'INSERT INTO settings (key, value) VALUES (?,?)', args: ['pix_payee', 'Alessandra Carla Sampaio de Souza'] },
+    { sql: 'INSERT INTO settings (key, value) VALUES (?,?)', args: ['pix_bank', 'Inter'] },
     { sql: 'INSERT INTO settings (key, value) VALUES (?,?)', args: ['org_name', 'Instituto Novo Horizonte'] },
     { sql: 'INSERT INTO settings (key, value) VALUES (?,?)', args: ['whatsapp_default', '5511999999999'] },
   ]);

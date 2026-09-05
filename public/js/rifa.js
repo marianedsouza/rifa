@@ -4,6 +4,7 @@ let NUMBERS = [];
 let selected = new Set();
 let selectedNumObjs = [];
 let paymentOrder = null;
+let paymentTotal = 0;
 let pollTimer = null;
 
 const $ = id => document.getElementById(id);
@@ -220,7 +221,7 @@ function render() {
             <div class="total" id="selTotal">R$ 0,00</div>
             <div id="selDetail">Nenhum número selecionado</div>
           </div>
-          <button class="btn" id="btnGoCheckout" onclick="openCheckout()" disabled>Confirmar números</button>
+          <button class="btn" id="btnGoCheckout" onclick="openCheckout()" disabled>Reservar e pagar com PIX</button>
         </div>
       </div>
     </div>
@@ -465,17 +466,32 @@ function submitReserve() {
 }
 
 function openPayment(r) {
+  paymentOrder = r.code;
+  paymentTotal = r.total;
+  const pix = r.pix || {};
+  const pixDesc = pix.type === 'email'
+    ? 'E-mail'
+    : pix.type === 'phone' ? 'Telefone'
+    : pix.type === 'cpf' ? 'CPF/CNPJ'
+    : pix.type === 'random' ? 'Aleatória' : (pix.type || 'Chave PIX');
   showModal(`
     <div class="modal-header"><h3>Pagamento via PIX</h3><button class="modal-close" onclick="cancelPending()">×</button></div>
     <div class="modal-body pix-box">
       <div class="countdown-badge">⏳ Reserva expira em <b id="pixCount">${RIFA.reserve_minutes}:00</b></div>
-      <p style="margin-bottom:12px">Escaneie o QR Code ou copie o código PIX para pagar <b>${money(r.total)}</b>.</p>
+      <p style="margin-bottom:12px">Escaneie o QR Code <b>ou copie o código PIX</b> abaixo e pague <b>${money(r.total)}</b>.</p>
       <div class="pix-qr"><img id="pixQR" src="/img/loading.png"></div>
       <div class="pix-brcode" id="pixBrcode">Carregando código PIX...</div>
-      <button class="btn outline sm" onclick="copyBrcode()">Copiar código PIX</button>
+      <button class="btn outline sm" onclick="copyBrcode()">Copiar código PIX (copia e cola)</button>
+      ${pix.payee || pix.key ? `
+      <div class="pix-recipient">
+        ${pix.payee ? '<div class="pr-row"><span>Recebedor</span><b>' + escapeHtml(pix.payee) + '</b></div>' : ''}
+        ${pix.key ? '<div class="pr-row"><span>Chave PIX (' + escX(pixDesc) + ')</span><b style="word-break:break-all">' + escapeHtml(pix.key) + '</b></div>' : ''}
+        ${pix.bank ? '<div class="pr-row"><span>Banco</span><b>' + escX(pix.bank) + '</b></div>' : ''}
+      </div>` : ''}
       <div class="mt-16" id="pixStatus"><span class="spinner"></span> Aguardando confirmação do pagamento...</div>
-      <p class="hint" style="font-size:12px;opacity:.6;margin-top:10px">Pagamento processado automaticamente em poucos instantes.</p>
-      <button class="btn accent block mt-16" onclick="simulatePay()">Já fiz o pagamento (simulação)</button>
+      <p class="hint" style="font-size:12px;opacity:.7;margin-top:10px">Após pagar, envie o comprovante pelo WhatsApp abaixo — a organização confirma seus números rapidinho.</p>
+      <button class="btn success block mt-8" onclick="sendComprovante('${r.code}')">💬 Enviar comprovante pelo WhatsApp</button>
+      <button class="btn accent block mt-8" onclick="simulatePay()">Já fiz o pagamento (simulação)</button>
     </div>`);
   API.get('/api/public/order/' + r.code).then(d => {
     if (d.payment && d.payment.pix_qr) {
@@ -486,6 +502,17 @@ function openPayment(r) {
   startPixCountdown(r);
   pollTimer = setInterval(() => pollOrder(r.code), 5000);
 }
+
+function sendComprovante(code) {
+  const wa = RIFA.org_whatsapp ? String(RIFA.org_whatsapp).replace(/\D/g, '') : '';
+  if (!wa) { flash('WhatsApp da organização não cadastrado.'); return; }
+  const msg = 'Olá! Acabei de fazer o PIX da minha participação na ' + RIFA.name +
+    ' (pedido ' + code + ', valor ' + money(paymentTotal) + '). ' +
+    'Segue o comprovante do pagamento. Obrigado!';
+  window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
+function escX(s) { return escapeHtml(s); }
 
 function startPixCountdown(r) {
   const end = new Date(r.expires_at).getTime();

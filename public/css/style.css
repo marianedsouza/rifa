@@ -241,6 +241,10 @@ button, a, input, select, textarea { touch-action: manipulation; }
 .pix-qr img { width: 220px; height: 220px; image-rendering: pixelated; }
 .pix-brcode { background: var(--c-secondary); border-radius: 10px; padding: 12px; font-size: 12px; word-break: break-all; margin: 12px 0; }
 .pix-status { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: #059669; }
+.pix-recipient { margin-top: 14px; background: var(--c-secondary); border-radius: 12px; padding: 4px 16px; text-align: left; }
+.pix-recipient .pr-row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding: 9px 0; border-bottom: 1px dashed rgba(0,0,0,.12); font-size: 13px; }
+.pix-recipient .pr-row:last-child { border-bottom: none; }
+.pix-recipient .pr-row b { text-align: right; }
 .spinner { width: 18px; height: 18px; border: 3px solid rgba(0,0,0,.15); border-top-color: var(--c-primary); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .countdown-badge { background: #fef3c7; color: #92400e; font-weight: 800; padding: 8px 14px; border-radius: 50px; display: inline-block; margin-bottom: 10px; }

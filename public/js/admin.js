@@ -667,12 +667,11 @@ async function saveRifa(id) {
 }
 
 async function deleteRifa(id) {
-  if (!confirm('Excluir esta rifa permanentemente? Esta ação não pode ser desfeita.')) return;
+  if (!confirm('Excluir esta rifa permanentemente? Todos os números, participações e pagamentos (mesmo os pagos) serão apagados. Esta ação não pode ser desfeita.')) return;
   try {
     await apiDel('/api/admin/rifas/' + id);
-    toast('Rifa excluída');
+    toast('Rifa excluída!');
     go('rifas');
-    viewRifas();
   } catch (e) {
     toast(e.message || 'Não foi possível excluir a rifa');
   }
@@ -1342,7 +1341,15 @@ async function viewConfig() {
         <div class="field mb"><label>Organização</label><input id="cOrg" value="${esc(s.org_name)}"></div>
         <div class="field mb"><label>CNPJ</label><input id="cCnpj" value="${esc(s.org_cnpj)}"></div>
         <div class="field mb"><label>Endereço</label><input id="cAddr" value="${esc(s.org_address)}"></div>
+        <div class="field mb"><label>Tipo de chave PIX</label><select id="cPixType">
+          <option value="email" ${s.pix_type === 'email' ? 'selected' : ''}>E-mail</option>
+          <option value="cpf" ${s.pix_type === 'cpf' ? 'selected' : ''}>CPF/CNPJ</option>
+          <option value="phone" ${s.pix_type === 'phone' ? 'selected' : ''}>Telefone</option>
+          <option value="random" ${s.pix_type === 'random' ? 'selected' : ''}>Chave aleatória</option>
+        </select></div>
         <div class="field mb"><label>Chave PIX (para pagamentos)</label><input id="cPix" value="${esc(s.pix_key)}"></div>
+        <div class="field mb"><label>Nome do recebedor (titular)</label><input id="cPixPayee" value="${esc(s.pix_payee)}"></div>
+        <div class="field mb"><label>Banco da conta</label><input id="cPixBank" value="${esc(s.pix_bank)}" placeholder="Ex: Inter, Nubank, Itaú..."></div>
         <div class="field mb"><label>Tempo padrão de reserva (min)</label><input id="cReserve" type="number" min="1" value="${esc(s.reserve_minutes)}"></div>
       </div>
       <div class="panel">
@@ -1371,7 +1378,8 @@ async function saveConfig() {
   const body = {
     platform_name: $('#cPlatform').value, whatsapp_default: $('#cWhats').value,
     email_default: $('#cEmail').value, org_name: $('#cOrg').value, org_cnpj: $('#cCnpj').value,
-    org_address: $('#cAddr').value, pix_key: $('#cPix').value,
+    org_address: $('#cAddr').value, pix_key: $('#cPix').value, pix_type: $('#cPixType').value,
+    pix_payee: $('#cPixPayee').value, pix_bank: $('#cPixBank').value,
     reserve_minutes: $('#cReserve').value,
     primary_color: get('sPrimary'),
     secondary_color: get('sSecondary'),

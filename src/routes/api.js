@@ -315,9 +315,16 @@ router.post('/public/rifa/:slug/reserve', h(async (req, res) => {
   }
 
   // Gera pagamento PIX
-  const pixKey = await getSetting('pix_key', 'contato@rifacomcausa.com');
-  const orgName = r.org_name || (await getSetting('org_name', 'Rifa com Causa'));
-  const brcode = util.buildPix(price.total, pixKey, orgName, 'SAO PAULO', 'RIFA' + r.id, r.name);
+  const pixKey = (await getSetting('pix_key', 'pixinstitutonh@gmail.com')).trim();
+  if (!pixKey) return res.status(400).json({ error: 'Chave PIX ainda não configurada pela organização' });
+  const pixPayee = (await getSetting('pix_payee', 'Alessandra Carla Sampaio de Souza')) || r.org_name || (await getSetting('org_name', 'Rifa com Causa'));
+  const pixBank = await getSetting('pix_bank', 'Inter');
+  let payeeShort = String(pixPayee).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  if (payeeShort.length > 24) {
+    const parts = payeeShort.split(/\s+/).filter(Boolean);
+    if (parts.length > 2) payeeShort = parts[0] + ' ' + parts[parts.length - 1];
+  }
+  const brcode = util.buildPix(price.total, pixKey, payeeShort, 'SAO PAULO', 'RIFA' + r.id, r.name);
   let qr = '';
   try {
     qr = await QRCode.toDataURL(brcode, { margin: 1, width: 512, errorCorrectionLevel: 'M' });
@@ -327,7 +334,7 @@ router.post('/public/rifa/:slug/reserve', h(async (req, res) => {
     VALUES (?,?,?,?,?,?,?)
   `).run(oid, 'pix', 'pending', price.total, brcode, qr, expires);
 
-  ok(res, { code, expires_at: expires, qty: numbers.length, total: price.total, discount: price.discount }, 201);
+  ok(res, { code, expires_at: expires, qty: numbers.length, total: price.total, discount: price.discount, pix: { key: pixKey, type: await getSetting('pix_type', 'email'), payee: pixPayee, bank: pixBank } }, 201);
 }));
 
 router.post('/public/order/:code/confirm-sim', h(async (req, res) => {
@@ -553,8 +560,6 @@ router.put('/admin/rifas/:id', requireAuth, requireRole('super_admin', 'admin'),
 router.delete('/admin/rifas/:id', requireAuth, requireRole('super_admin'), h(async (req, res) => {
   const r = await db.prepare('SELECT * FROM rifas WHERE id=?').get(req.params.id);
   if (!r) return res.status(404).json({ error: 'Rifa não encontrada' });
-  const sold = (await db.prepare("SELECT COUNT(*) AS c FROM rifa_numeros WHERE rifa_id=? AND status='paid'").get(r.id)).c;
-  if (sold > 0) return res.status(400).json({ error: 'Não é possível excluir uma rifa com números vendidos' });
   await db.runBatch([
     { sql: 'DELETE FROM rifa_numeros WHERE rifa_id=?', args: [r.id] },
     { sql: 'DELETE FROM order_numbers WHERE rifa_id=?', args: [r.id] },
@@ -562,9 +567,11 @@ router.delete('/admin/rifas/:id', requireAuth, requireRole('super_admin'), h(asy
     { sql: 'DELETE FROM participants WHERE rifa_id=?', args: [r.id] },
     { sql: 'DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE rifa_id=?)', args: [r.id] },
     { sql: 'DELETE FROM orders WHERE rifa_id=?', args: [r.id] },
+    { sql: 'DELETE FROM draws WHERE rifa_id=?', args: [r.id] },
+    { sql: 'DELETE FROM art_templates WHERE rifa_id=?', args: [r.id] },
     { sql: 'DELETE FROM rifas WHERE id=?', args: [r.id] },
   ]);
-  await logAction(req.user.id, 'rifa.delete', { id: r.id });
+  await logAction(req.user.id, 'rifa.delete', { id: r.id, name: r.name, slug: r.slug });
   ok(res, { ok: true });
 }));
 
@@ -863,7 +870,7 @@ router.get('/admin/logs', requireAuth, requireRole('super_admin', 'admin'), h(as
 router.get('/admin/settings', requireAuth, h(async (req, res) => {
   const keys = ['platform_name', 'platform_logo', 'primary_color', 'secondary_color', 'accent_color', 'bg_color', 'text_color',
     'whatsapp_default', 'email_default', 'org_name', 'org_cnpj', 'org_address',
-    'pix_key', 'reserve_minutes', 'terms', 'privacy'];
+    'pix_key', 'pix_type', 'pix_payee', 'pix_bank', 'reserve_minutes', 'terms', 'privacy'];
   const out = {};
   for (const k of keys) out[k] = await getSetting(k, '');
   ok(res, out);
@@ -874,7 +881,7 @@ router.put('/admin/settings', requireAuth, requireRole('super_admin', 'admin'), 
   for (const [k, v] of Object.entries(b)) {
     if (k.startsWith('platform_') || k.startsWith('whatsapp') || k.startsWith('email') ||
       k === 'primary_color' || k === 'secondary_color' || k === 'accent_color' || k === 'bg_color' || k === 'text_color' ||
-      k === 'org_name' || k === 'org_cnpj' || k === 'org_address' || k === 'pix_key' || k === 'reserve_minutes' ||
+      k === 'org_name' || k === 'org_cnpj' || k === 'org_address' || k === 'pix_key' || k === 'pix_type' || k === 'pix_payee' || k === 'pix_bank' || k === 'reserve_minutes' ||
       k === 'terms' || k === 'privacy') {
       await setSetting(k, v);
     }
