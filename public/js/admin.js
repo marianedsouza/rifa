@@ -814,6 +814,7 @@ async function numbersTab(id, el) {
       </select>
       <div class="spacer"></div>
       <button class="btn outline sm" onclick="loadAdminNumbers(${id})">Atualizar</button>
+      ${USER.role !== 'operator' ? `<button class="btn primary sm" onclick="openCashSale(${id})">💵 Venda em dinheiro</button>` : ''}
     </div>
     <div id="nGrid" class="numgrid">Carregando...</div>
   </div>`;
@@ -848,6 +849,118 @@ async function toggleBlock(numId) {
     await apiPatch('/api/admin/numeros/' + numId, { action });
     toast(action === 'block' ? 'Número bloqueado' : 'Número desbloqueado');
     const id = currentRifaId;
+    loadAdminNumbers(id);
+  } catch (e) { toast(e.message); }
+}
+
+/* ---- Venda manual (em dinheiro) ---- */
+let cashSaleSelected = new Set();
+let cashGridCache = [];
+
+async function openCashSale(id) {
+  const [j, rifa] = await Promise.all([
+    apiGet(`/api/admin/rifas/${id}/numeros?status=available`),
+    apiGet('/api/admin/rifas/' + id)
+  ]);
+  cashGridCache = j.numbers;
+  cashSaleSelected = new Set();
+  window._cashRifa = rifa;
+  showModal(`
+    <div class="modal-head"><h3>💵 Venda em dinheiro</h3><button onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="hint mb">Clique nos números para vincular ao participante. O pagamento pode ser em dinheiro, PIX no local ou cartão.</p>
+      <div class="flex mb">
+        <input id="csSearch" placeholder="Buscar número..." style="flex:1;min-width:0;padding:9px 12px;border:1px solid var(--line);border-radius:8px" oninput="renderCashGrid()">
+        <button class="btn outline sm" onclick="cashPickRandom()">🎲 sorteio automático</button>
+      </div>
+      <div class="numgrid" id="csGrid" style="max-height:230px;overflow-y:auto"></div>
+      <div id="csTotal" class="mt" style="font-weight:800;color:var(--brand)"></div>
+      <div class="form-grid">
+        <div class="field full"><label>Nome do participante *</label><input id="csName" placeholder="Nome completo"></div>
+        <div class="field"><label>CPF *</label><input id="csCpf" placeholder="000.000.000-00" maxlength="14" oninput="maskCPFInput(this)"></div>
+        <div class="field"><label>WhatsApp</label><input id="csWhats" placeholder="(11) 99999-9999" maxlength="16" oninput="maskPhoneInput(this)"></div>
+        <div class="field"><label>Cidade</label><input id="csCity"></div>
+        <div class="field"><label>UF</label><input id="csUf" maxlength="2"></div>
+      </div>
+      <div class="flex mt">
+        <select id="csMethod" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:8px">
+          <option value="dinheiro">Dinheiro</option>
+          <option value="pix">PIX (no local)</option>
+          <option value="cartao">Cartão</option>
+        </select>
+        <button class="btn primary" onclick="executeCashSale(${id})">Confirmar venda</button>
+      </div>
+    </div>`, false);
+  renderCashGrid();
+}
+
+function renderCashGrid() {
+  const q = ($('csSearch')?.value || '').trim();
+  const grid = $('csGrid');
+  if (!grid) return;
+  let list = cashGridCache;
+  if (q) list = list.filter(n => String(n.number).includes(q) || padNum(n.number, 300).includes(q));
+  grid.innerHTML = list.map(n => {
+    const sel = cashSaleSelected.has(n.number);
+    return `<div class="ncell available" data-num="${n.number}" style="cursor:pointer;${sel ? 'border-color:var(--brand);background:var(--brand-2);font-weight:800' : ''}" onclick="cashToggle(${n.number})">${padNum(n.number, 300)}</div>`;
+  }).join('') || '<div class="empty">Nenhum número disponível</div>';
+  updateCsTotal();
+}
+
+function cashToggle(num) {
+  if (cashSaleSelected.has(num)) cashSaleSelected.delete(num);
+  else cashSaleSelected.add(num);
+  renderCashGrid();
+}
+
+function cashPickRandom() {
+  const avail = cashGridCache.filter(n => !cashSaleSelected.has(n.number)).map(n => n.number);
+  if (!avail.length) { toast('Todos os números já foram selecionados.'); return; }
+  cashSaleSelected.add(avail[Math.floor(Math.random() * avail.length)]);
+  renderCashGrid();
+}
+
+function csCalcPrice(qty) {
+  const r = window._cashRifa;
+  const packs = (r.packages || []).slice().sort((a, b) => b.qty - a.qty);
+  let rem = qty, promo = 0;
+  for (const p of packs) { if (p.qty > 0 && p.price > 0) while (rem >= p.qty) { promo += p.price; rem -= p.qty; } }
+  if (rem > 0) promo += rem * (Number(r.price) || 0);
+  return promo;
+}
+
+function updateCsTotal() {
+  const el = $('csTotal');
+  if (!el) return;
+  const qty = cashSaleSelected.size;
+  if (qty) {
+    const total = csCalcPrice(qty);
+    el.textContent = qty + ' número(s) selecionado(s) · Total: ' + money(total);
+  } else {
+    el.textContent = '';
+  }
+}
+
+async function executeCashSale(id) {
+  const name = $('csName')?.value.trim();
+  const cpf = $('csCpf')?.value.replace(/\D/g, '');
+  if (!name) { toast('Informe o nome do participante.'); return; }
+  if (!validCPF(cpf)) { toast('CPF inválido. Verifique os números.'); return; }
+  if (!cashSaleSelected.size) { toast('Selecione ao menos um número.'); return; }
+  const body = {
+    numbers: [...cashSaleSelected],
+    participant: {
+      name, cpf,
+      whatsapp: $('csWhats')?.value.replace(/\D/g, ''),
+      city: $('csCity')?.value.trim(),
+      state: $('csUf')?.value.trim()
+    },
+    method: $('csMethod')?.value || 'dinheiro'
+  };
+  try {
+    const r = await apiPost('/api/admin/rifas/' + id + '/cash-sale', body);
+    toast('Venda registrada! Pedido ' + r.code);
+    closeModal();
     loadAdminNumbers(id);
   } catch (e) { toast(e.message); }
 }

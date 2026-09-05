@@ -694,6 +694,57 @@ router.post('/admin/orders/:id/cancel', requireAuth, requireRole('super_admin', 
   ok(res, { status: 'cancelled' });
 }));
 
+router.post('/admin/rifas/:id/cash-sale', requireAuth, requireRole('super_admin', 'admin'), h(async (req, res) => {
+  const r = await db.prepare('SELECT * FROM rifas WHERE id=?').get(req.params.id);
+  if (!r) return res.status(404).json({ error: 'Rifa não encontrada' });
+  const b = req.body || {};
+  const nums = [ ...new Set((Array.isArray(b.numbers) ? b.numbers : []).map(Number).filter(n => Number.isInteger(n) && n >= 1)) ];
+  if (!nums.length) return res.status(400).json({ error: 'Selecione ao menos um número' });
+  const p = b.participant || {};
+  const name = String(p.name || '').trim();
+  const cpf = String(p.cpf || '').replace(/\D/g, '');
+  if (!name) return res.status(400).json({ error: 'Nome do participante é obrigatório' });
+  if (!util.validCPF(cpf)) return res.status(400).json({ error: 'CPF inválido' });
+
+  const ph = nums.map(() => '?').join(',');
+  const rows = await db.prepare(`SELECT * FROM rifa_numeros WHERE rifa_id=? AND number IN (${ph})`).all(r.id, ...nums);
+  if (rows.length !== nums.length) return res.status(400).json({ error: 'Alguns números não existem nesta rifa' });
+  const busy = rows.filter(x => x.status !== 'available');
+  if (busy.length) {
+    return res.status(400).json({ error: 'Os números já estão reservados, pagos ou bloqueados: ' + busy.map(x => x.number).join(', ') });
+  }
+
+  let pid = null;
+  const existing = await db.prepare('SELECT id FROM participants WHERE rifa_id=? AND cpf=?').get(r.id, cpf);
+  if (existing) {
+    pid = existing.id;
+  } else {
+    const ins = await db.prepare('INSERT INTO participants (rifa_id, name, cpf, whatsapp, email, city, state) VALUES (?,?,?,?,?,?,?)')
+      .run(r.id, name, cpf, String(p.whatsapp || '').trim(), String(p.email || '').trim(), String(p.city || '').trim(), String(p.state || '').trim());
+    pid = ins.lastInsertRowid;
+  }
+
+  const price = calculatePrice(r, nums.length);
+  const method = String(b.method || 'dinheiro');
+  const code = util.genCode('PED', 6);
+  const oIns = await db.prepare(`
+    INSERT INTO orders (rifa_id, participant_id, code, status, qty, unit_price, discount, total)
+    VALUES (?,?,?,'approved',?,?,?,?)
+  `).run(r.id, pid, code, nums.length, r.price, price.discount, price.total);
+  const oid = oIns.lastInsertRowid;
+
+  const stmts = [];
+  for (const row of rows) {
+    stmts.push({ sql: 'INSERT INTO order_numbers (order_id, numero_id, rifa_id, number) VALUES (?,?,?,?)', args: [oid, row.id, r.id, row.number] });
+    stmts.push({ sql: "UPDATE rifa_numeros SET status='paid', order_id=?, participant_id=?, sold_at=datetime('now') WHERE id=? AND status='available'", args: [oid, pid, row.id] });
+  }
+  stmts.push({ sql: "INSERT INTO payments (order_id, method, status, amount, admin_confirm) VALUES (?,?,?,?, 1)", args: [oid, method, 'approved', price.total] });
+  await db.runBatch(stmts);
+  await logAction(req.user.id, 'order.cash', { rifa: r.id, code, qty: nums.length, total: price.total, method });
+
+  ok(res, { ok: true, code }, 201);
+}));
+
 /* ============ ADMIN: PARTICIPANTES ============ */
 
 router.get('/admin/rifas/:id/participants', requireAuth, h(async (req, res) => {

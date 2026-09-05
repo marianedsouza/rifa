@@ -97,3 +97,33 @@ window.maskCPF = (s) => {
   if (s.length === 11) return '***.' + s.slice(3, 6) + '.' + s.slice(6, 9) + '-**';
   return '***-**';
 };
+
+window.maskCPFInput = (el) => {
+  let v = el.value.replace(/\D/g, '').slice(0, 11);
+  if (v.length > 9) v = v.slice(0, 3) + '.' + v.slice(3, 6) + '.' + v.slice(6, 9) + '-' + v.slice(9);
+  else if (v.length > 6) v = v.slice(0, 3) + '.' + v.slice(3, 6) + '.' + v.slice(6);
+  else if (v.length > 3) v = v.slice(0, 3) + '.' + v.slice(3);
+  el.value = v;
+};
+
+window.maskPhoneInput = (el) => {
+  let v = el.value.replace(/\D/g, '').slice(0, 11);
+  if (v.length > 10) v = '(' + v.slice(0, 2) + ') ' + v.slice(2, 7) + '-' + v.slice(7);
+  else if (v.length > 6) v = '(' + v.slice(0, 2) + ') ' + v.slice(2, 6) + '-' + v.slice(6);
+  else if (v.length > 2) v = '(' + v.slice(0, 2) + ') ' + v.slice(2);
+  else if (v.length) v = '(' + v;
+  el.value = v;
+};
+
+window.validCPF = (cpf) => {
+  cpf = String(cpf || '').replace(/\D/g, '');
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  let s = 0;
+  for (let i = 0; i < 9; i++) s += parseInt(cpf[i]) * (10 - i);
+  let d1 = 11 - (s % 11); if (d1 >= 10) d1 = 0;
+  if (d1 !== parseInt(cpf[9])) return false;
+  s = 0;
+  for (let i = 0; i < 10; i++) s += parseInt(cpf[i]) * (11 - i);
+  let d2 = 11 - (s % 11); if (d2 >= 10) d2 = 0;
+  return d2 === parseInt(cpf[10]);
+};
