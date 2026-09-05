@@ -137,7 +137,7 @@ async function viewDashboard() {
 
     <div class="panel">
       <div class="head"><h3>Campanhas</h3></div>
-      <table class="tbl">
+      <div class="tbl-scroll"><table class="tbl">
         <thead><tr><th>Rifa</th><th>Status</th><th>Vendidos</th><th>Disponíveis</th><th>Reservados</th><th>Arrecadado</th><th>Potencial</th><th></th></tr></thead>
         <tbody>
           ${d.perRifa.map(r => `<tr>
@@ -148,23 +148,23 @@ async function viewDashboard() {
             <td><button class="btn sm outline" onclick="go('rifa',${r.id})">Abrir</button></td>
           </tr>`).join('')}
         </tbody>
-      </table>
+      </table></div>
     </div>
 
     <div class="grid2" style="grid-template-columns:1fr 1fr">
       <div class="panel">
         <div class="head"><h3>Últimas participações</h3></div>
-        <table class="tbl">
+        <div class="tbl-scroll"><table class="tbl">
           <thead><tr><th>Pedido</th><th>Participante</th><th>Status</th><th>Total</th></tr></thead>
           <tbody>${d.recentOrders.map(o => `<tr><td>${esc(o.code)}</td><td>${esc(o.participant_name)}</td><td><span class="chip ${o.status}">${o.status}</span></td><td>${money(o.total)}</td></tr>`).join('')}</tbody>
-        </table>
+        </table></div>
       </div>
       <div class="panel">
         <div class="head"><h3>Atividade recente</h3></div>
-        <table class="tbl">
+        <div class="tbl-scroll"><table class="tbl">
           <thead><tr><th>Ação</th><th>Detalhe</th><th>Quando</th></tr></thead>
           <tbody>${d.recentLogs.map(l => `<tr><td>${esc(l.action)}</td><td style="font-size:12px;color:#666">${esc((l.details||'').slice(0,80))}</td><td style="white-space:nowrap">${esc(l.created_at)}</td></tr>`).join('')}</tbody>
-        </table>
+        </table></div>
       </div>
     </div>`;
 
@@ -207,7 +207,7 @@ async function viewRifas() {
   $('content').innerHTML = `
     <div class="panel">
       <div class="head"><h3>Todas as rifas</h3><div class="right"><button class="btn primary" onclick="openNewRifa()">+ Nova rifa</button></div></div>
-      <table class="tbl">
+      <div class="tbl-scroll"><table class="tbl">
         <thead><tr><th>Rifa</th><th>Causa</th><th>Prêmio</th><th>Preço</th><th>Vendidos</th><th>Status</th><th>Sorteio</th><th></th></tr></thead>
         <tbody>
           ${rifas.map(r => `<tr>
@@ -225,7 +225,7 @@ async function viewRifas() {
             </td>
           </tr>`).join('') || '<tr><td colspan="8"><div class="empty">Nenhuma rifa criada ainda</div></td></tr>'}
         </tbody>
-      </table>
+      </table></div>
     </div>`;
 }
 
@@ -858,7 +858,7 @@ async function ordersTab(id, el) {
   el.innerHTML = `<div class="panel"><div class="head"><h3>Pedidos e pagamentos</h3></div><div id="ordersList">Carregando...</div></div>`;
   const orders = await apiGet('/api/admin/rifas/' + id + '/orders');
   const list = $('ordersList');
-  list.innerHTML = `<table class="tbl">
+  list.innerHTML = `<div class="tbl-scroll"><table class="tbl">
     <thead><tr><th>Código</th><th>Participante</th><th>Números</th><th>Total</th><th>Pagamento</th><th>Status</th><th>Ações</th></tr></thead>
     <tbody>
       ${orders.map(o => `<tr>
@@ -875,7 +875,7 @@ async function ordersTab(id, el) {
         </td>
       </tr>`).join('') || '<tr><td colspan="7"><div class="empty">Nenhum pedido</div></td></tr>'}
     </tbody>
-  </table>`;
+  </table></div>`;
 }
 
 async function confirmOrder(oid) {
@@ -919,7 +919,7 @@ async function showOrderDetail(oid) {
 async function participantsTab(id, el) {
   el.innerHTML = `<div class="panel"><div class="head"><h3>Participantes</h3></div><div id="partsList">Carregando...</div></div>`;
   const parts = await apiGet('/api/admin/rifas/' + id + '/participants');
-  $('partsList').innerHTML = `<table class="tbl">
+  $('partsList').innerHTML = `<div class="tbl-scroll"><table class="tbl">
     <thead><tr><th>Nome</th><th>CPF</th><th>WhatsApp</th><th>Cidade/UF</th><th>Números pagos</th><th>Total gasto</th></tr></thead>
     <tbody>${parts.map(p => `<tr>
       <td><b>${esc(p.name)}</b></td>
@@ -929,7 +929,7 @@ async function participantsTab(id, el) {
       <td>${p.num_paid}</td>
       <td>${money(p.total_spent)}</td>
     </tr>`).join('') || '<tr><td colspan="6"><div class="empty">Nenhum participante</div></td></tr>'}</tbody>
-  </table>`;
+  </table></div>`;
 }
 
 /* ---- Sorteio ---- */
@@ -1259,7 +1259,7 @@ async function viewUsuarios() {
       <div class="head"><h3>Usuários e permissões</h3>
         <div class="right"><button class="btn primary sm" onclick="openNewUser()">+ Novo usuário</button></div>
       </div>
-      <table class="tbl">
+      <div class="tbl-scroll"><table class="tbl">
         <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody>${users.map(u => `<tr>
           <td><b>${esc(u.name)}</b>${u.id === USER.id ? ' <small>(você)</small>' : ''}</td>
@@ -1268,7 +1268,7 @@ async function viewUsuarios() {
           <td>${u.active ? '<span class="chip active">ativo</span>' : '<span class="chip cancelled">inativo</span>'}</td>
           <td><button class="btn sm outline" onclick="editUser(${u.id})">Editar</button></td>
         </tr>`).join('')}</tbody>
-      </table>
+      </table></div>
     </div>
     <div class="panel">
       <h3>Perfis de acesso</h3>
@@ -1393,7 +1393,7 @@ async function viewLogs() {
   $('content').innerHTML = `
     <div class="panel">
       <div class="head"><h3>Registro de ações administrativas</h3></div>
-      <table class="tbl">
+      <div class="tbl-scroll"><table class="tbl">
         <thead><tr><th>Usuário</th><th>Ação</th><th>Detalhes</th><th>Data</th></tr></thead>
         <tbody>${logs.map(l => `<tr>
           <td>#${l.user_id || '—'}</td>
@@ -1401,7 +1401,7 @@ async function viewLogs() {
           <td style="font-size:12px;color:#666">${esc((l.details || '').slice(0, 100))}</td>
           <td style="white-space:nowrap">${esc(l.created_at)}</td>
         </tr>`).join('') || '<tr><td colspan="4"><div class="empty">Sem registros</div></td></tr>'}</tbody>
-      </table>
+      </table></div>
     </div>`;
 }
 

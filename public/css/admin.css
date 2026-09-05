@@ -13,6 +13,8 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+html { overflow-x: clip; }
+button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); }
 
 /* ---------- Login ---------- */
@@ -67,6 +69,12 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
 .tbl td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .tbl tr:hover td { background: #fafafa; }
 .tbl .num-chip { background: var(--brand-2); border-radius: 6px; padding: 2px 6px; font-size: 11px; font-weight: 700; margin: 1px; display: inline-block; }
+
+/* ---------- Table scroll (mobile) ---------- */
+.tbl-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll::-webkit-scrollbar, .tbl-scroll::-webkit-scrollbar { height: 6px; }
+.table-scroll::-webkit-scrollbar-thumb, .tbl-scroll::-webkit-scrollbar-thumb { background: #cbd2d9; border-radius: 50px; }
+@media (max-width: 860px) { .tbl-scroll table.tbl { min-width: 640px; } }
 
 /* ---------- Buttons ---------- */
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; transition: .15s; }
@@ -177,4 +185,37 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
   .main { margin-left: 0; padding: 16px; }
   .menu-btn { display: block; }
   .grid2, .grid3 { grid-template-columns: 1fr; }
+  .topbar { flex-wrap: wrap; gap: 10px; }
+  .topbar h1 { font-size: 19px; }
+  .topbar .right { margin-left: 0; width: 100%; }
+  .topbar .right .btn { flex: 1; justify-content: center; }
+  .wizard-steps { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+  .wizard-steps::-webkit-scrollbar { display: none; }
+  .wstep { flex: 0 0 auto; min-width: 102px; }
+  .color-row { flex-wrap: wrap; }
+  .color-row label { width: 100%; }
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal { max-width: none; border-radius: 16px 16px 0 0; max-height: 92vh; overflow-y: auto; }
+  .ncell .tt { display: none !important; }
+}
+
+@media (max-width: 600px) {
+  .login-card { padding: 28px 20px; }
+  .login-card input { font-size: 16px; }
+  .main { padding: 14px; }
+  .panel { padding: 18px 16px; }
+  .stat-card { padding: 16px; }
+  .numgrid { grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 5px; }
+  .field input, .field select, .field textarea { font-size: 16px; }
+  .draw-machine .reel { font-size: 64px; min-height: 92px; }
+  .winner-reveal .big { font-size: 72px; }
+  .modal-head { padding: 16px; }
+  .modal-body { padding: 16px; }
+}
+
+@media (max-width: 480px) {
+  .main { padding: 12px; }
+  .panel { padding: 16px 14px; }
+  .tab { padding: 10px 12px; font-size: 13px; }
+  .stat-card .value { font-size: 22px; }
 }

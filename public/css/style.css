@@ -23,6 +23,10 @@ img { max-width: 100%; display: block; }
 a { color: var(--c-primary); text-decoration: none; }
 button { font-family: var(--font); cursor: pointer; }
 
+html { scroll-behavior: smooth; overflow-x: clip; }
+button, a, .num-cell, .pack-card { -webkit-tap-highlight-color: transparent; }
+button, a, input, select, textarea { touch-action: manipulation; }
+
 .container { max-width: 1140px; margin: 0 auto; padding: 0 20px; }
 
 .btn {
@@ -93,6 +97,14 @@ button { font-family: var(--font); cursor: pointer; }
 .progress-track { height: 14px; background: rgba(0,0,0,.08); border-radius: 50px; overflow: hidden; }
 .progress-fill { height: 100%; background: linear-gradient(90deg, var(--c-primary), var(--c-accent)); border-radius: 50px; transition: width .8s ease; }
 .progress-meta { margin-top: 10px; font-size: 14px; color: var(--c-text); opacity: .8; }
+
+/* ---------- Rifa card (index) ---------- */
+.rf-card { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.rf-card .rf-thumb { width: 110px; height: 90px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.rf-card .rf-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.rf-card .rf-info { flex: 1; min-width: 220px; }
+.rf-card .rf-bar { width: 180px; flex-shrink: 0; }
+.rf-card .rf-btn { flex-shrink: 0; }
 
 /* ---------- Sections ---------- */
 .section { padding: 48px 0; }
@@ -270,12 +282,67 @@ button { font-family: var(--font); cursor: pointer; }
 .hidden { display: none !important; }
 
 @media (max-width: 820px) {
-  .hero .container { grid-template-columns: 1fr; }
+  .site-header .container { gap: 10px; }
+  .header-actions { margin-left: 0; }
+  .hero { padding: 40px 0; }
+  .hero .container { grid-template-columns: 1fr; gap: 24px; }
+  .hero-copy { gap: 14px; }
   .cause-grid, .prize-grid { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .hero-prize { order: -1; }
   .selection-card { flex-direction: column; align-items: stretch; text-align: center; }
+  .selection-card .btn { width: 100%; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
   .num-cell { padding: 10px 2px; font-size: 13px; }
+  .num-cell .mini { font-size: 9px; }
   .modal { margin: 0; }
+  .countdown .cd-box { min-width: 78px; padding: 15px 12px; }
+  .cd-box strong { font-size: 26px; }
+  .container { padding-left: 16px; padding-right: 16px; }
+}
+
+@media (max-width: 700px) {
+  .hero-cta .btn { width: 100%; }
+  .hero-stat strong { font-size: 22px; }
+  .hero-prize .price-tag { padding: 8px 18px; font-size: 16px; }
+  .numbers-toolbar input[type=search], .numbers-toolbar input[type=number] { flex: 1; min-width: 0; }
+  .numbers-toolbar .spacer { display: none; }
+  .qty-control, .qty-shortcuts { justify-content: center; }
+  .selection-bar { bottom: max(8px, env(safe-area-inset-bottom)); }
+  .selection-card { padding: 16px 18px; gap: 12px; }
+  .selection-card .info { min-width: 0; }
+  .pix-qr img { width: min(220px, 74vw); height: auto; }
+  .summary .row { gap: 12px; }
+  .summary .nums { justify-content: flex-end; }
+  .site-footer .container { justify-content: center; text-align: center; }
+  .site-header { position: static; }
+  .header-name { font-size: 15px; }
+  .header-actions .btn { padding: 9px 14px; font-size: 13px; }
+  .draw-machine .reel { font-size: 68px; letter-spacing: 4px; min-height: 96px; }
+  .winner-reveal .big-num { font-size: 68px; }
+}
+
+@media (max-width: 560px) {
+  .rf-card { flex-direction: column; align-items: stretch; }
+  .rf-card .rf-thumb { width: 100%; height: 160px; }
+  .rf-card .rf-info { min-width: 0; }
+  .rf-card .rf-bar, .rf-card .rf-btn { width: 100%; }
+  .steps, .packs-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 480px) {
+  .steps, .packs-grid { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 26px; }
+  .countdown { gap: 8px; }
+  .countdown .cd-box { min-width: 0; flex: 1; padding: 12px 6px; }
+  .cd-box strong { font-size: 22px; }
+  .cd-box span { font-size: 10px; }
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal { border-radius: 18px 18px 0 0; max-height: 92vh; overflow-y: auto; }
+  .modal-body { padding: 20px; }
+  .receipt-head { flex-direction: column; text-align: center; }
+  .receipt-head > div:last-child { margin-left: 0 !important; }
+  .field input, .field select, .field textarea, .numbers-toolbar input { font-size: 16px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 5px; }
+  .progress-top strong { font-size: 17px; }
 }

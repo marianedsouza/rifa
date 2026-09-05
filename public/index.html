@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rifa com Causa</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=3">
 </head>
 <body style="background:#faf9f7">
   <header class="site-header">
@@ -96,7 +96,7 @@
     </div>
   </footer>
 
-  <script src="/js/common.js?v=2"></script>
+  <script src="/js/common.js?v=3"></script>
   <script>
     async function loadRifas() {
       try {
@@ -111,11 +111,11 @@
           return `
           <a href="/r/${r.slug}" style="text-decoration:none;color:inherit;display:block;margin-bottom:16px">
             <div class="progress-card">
-              <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-                <div style="width:110px;height:90px;border-radius:12px;overflow:hidden;background:${r.visual.primary_color};display:flex;align-items:center;justify-content:center">
-                  ${r.prize_image ? '<img src="' + r.prize_image + '" style="width:100%;height:100%;object-fit:cover">' : '<span style="color:#fff;font-size:30px">🎁</span>'}
+              <div class="rf-card">
+                <div class="rf-thumb" style="background:${r.visual.primary_color}">
+                  ${r.prize_image ? '<img src="' + r.prize_image + '">' : '<span style="color:#fff;font-size:30px">🎁</span>'}
                 </div>
-                <div style="flex:1;min-width:220px">
+                <div class="rf-info">
                   <div style="font-weight:800;font-size:18px;color:${r.visual.primary_color}">${escapeHtml(r.name)}</div>
                   <div style="font-size:14px;opacity:.8">Prêmio: ${escapeHtml(r.prize_name)}</div>
                   <div style="font-size:13px;opacity:.65">Apoiando: ${escapeHtml(r.cause_name)}</div>
@@ -125,11 +125,11 @@
                     <span style="opacity:.7">Sorteio: ${formatDate(r.draw_date)}</span>
                   </div>
                 </div>
-                <div style="width:180px">
+                <div class="rf-bar">
                   <div class="progress-track" style="height:10px;background:rgba(0,0,0,.08)"><div class="progress-fill" style="width:${pct}%;background:${r.visual.primary_color}"></div></div>
                   <div style="font-size:12px;opacity:.7;margin-top:6px;text-align:center">${pct}% vendido</div>
                 </div>
-                <span class="btn" style="background:${r.visual.primary_color}">Participar</span>
+                <span class="btn rf-btn" style="background:${r.visual.primary_color}">Participar</span>
               </div>
             </div>
           </a>`;
