@@ -114,7 +114,7 @@ function render() {
       <div class="container">
         <h2 class="section-title">O prêmio</h2>
         <div class="prize-grid">
-          ${RIFA.prize_image ? '<img src="' + RIFA.prize_image + '" alt="Prêmio">' : '<div class="skeleton" style="height:300px"></div>'}
+          ${RIFA.prize_image ? '<img src="' + RIFA.prize_image + '" alt="Prêmio">' : '<div class="skeleton" style="width:100%;aspect-ratio:1"></div>'}
           <div class="prize-details">
             <h3>${escapeHtml(RIFA.prize_name)}</h3>
             ${RIFA.prize_desc ? '<p>' + escapeHtml(RIFA.prize_desc).replace(/\n/g,'<br>') + '</p>' : ''}

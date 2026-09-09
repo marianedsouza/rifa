@@ -83,7 +83,7 @@ button, a, input, select, textarea { touch-action: manipulation; }
 .hero-stat span { font-size: 13px; opacity: .85; }
 .hero-cta { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; }
 .hero-prize { text-align: center; }
-.hero-prize img { border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.35); width: 100%; max-height: 380px; object-fit: cover; }
+.hero-prize img { border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.35); width: 100%; aspect-ratio: 1; object-fit: cover; }
 .hero-prize .price-tag {
   display: inline-block; margin-top: 16px; background: var(--c-accent); color: #222;
   font-weight: 800; font-size: 20px; padding: 10px 24px; border-radius: 50px;
@@ -100,7 +100,7 @@ button, a, input, select, textarea { touch-action: manipulation; }
 
 /* ---------- Rifa card (index) ---------- */
 .rf-card { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-.rf-card .rf-thumb { width: 110px; height: 90px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.rf-card .rf-thumb { width: 110px; height: 110px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .rf-card .rf-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .rf-card .rf-info { flex: 1; min-width: 220px; }
 .rf-card .rf-bar { width: 180px; flex-shrink: 0; }
@@ -126,7 +126,7 @@ button, a, input, select, textarea { touch-action: manipulation; }
 
 /* ---------- Prize ---------- */
 .prize-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 32px; align-items: center; }
-.prize-grid img { border-radius: var(--radius); box-shadow: var(--shadow); max-height: 400px; width: 100%; object-fit: cover; }
+.prize-grid img { border-radius: var(--radius); box-shadow: var(--shadow); width: 100%; aspect-ratio: 1; object-fit: cover; }
 .prize-details h3 { font-size: 26px; color: var(--c-primary); margin-bottom: 10px; }
 
 /* ---------- Numbers ---------- */
@@ -328,7 +328,7 @@ button, a, input, select, textarea { touch-action: manipulation; }
 
 @media (max-width: 560px) {
   .rf-card { flex-direction: column; align-items: stretch; }
-  .rf-card .rf-thumb { width: 100%; height: 160px; }
+  .rf-card .rf-thumb { width: 100%; aspect-ratio: 1; }
   .rf-card .rf-info { min-width: 0; }
   .rf-card .rf-bar, .rf-card .rf-btn { width: 100%; }
   .steps, .packs-grid { grid-template-columns: 1fr 1fr; }
