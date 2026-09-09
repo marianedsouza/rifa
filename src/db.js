@@ -1,18 +1,5 @@
 const { Pool } = require('pg');
 
-const DATABASE_URL = process.env.DATABASE_URL || '';
-
-if (!DATABASE_URL || DATABASE_URL === 'COLE_AQUI_SUA_CONNECTION_STRING_DO_SUPABASE') {
-  throw new Error(
-    'DATABASE_URL não configurada. Defina DATABASE_URL nas variáveis de ambiente com a connection string do Supabase PostgreSQL.'
-  );
-}
-
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
 /*
  * Camada de compatibilidade.
  *
@@ -25,6 +12,24 @@ const pool = new Pool({
  * Agora usamos PostgreSQL (pg) com placeholders $1, $2, etc.
  * Esta camada converte automaticamente ? -> $1, $2, ... e mantém a mesma API.
  */
+
+let _pool = null;
+function getPool() {
+  if (_pool) return _pool;
+  const url = process.env.DATABASE_URL || '';
+  if (!url) {
+    throw new Error('DATABASE_URL não configurada. Defina DATABASE_URL nas variáveis de ambiente.');
+  }
+  _pool = new Pool({
+    connectionString: url,
+    ssl: { rejectUnauthorized: false },
+    max: 5,
+  });
+  _pool.on('error', (err) => {
+    console.error('[db] pool error:', err.message);
+  });
+  return _pool;
+}
 
 function convertPlaceholders(sql) {
   let idx = 0;
@@ -41,12 +46,12 @@ function prepare(sql) {
   return {
     async get(...args) {
       const params = normalizeArgs(args);
-      const rs = await pool.query(pgSql, params);
+      const rs = await getPool().query(pgSql, params);
       return rs.rows.length ? rs.rows[0] : undefined;
     },
     async all(...args) {
       const params = normalizeArgs(args);
-      const rs = await pool.query(pgSql, params);
+      const rs = await getPool().query(pgSql, params);
       return rs.rows;
     },
     async run(...args) {
@@ -56,7 +61,7 @@ function prepare(sql) {
       if (isInsert && !/\bRETURNING\b/i.test(sql)) {
         execSql = pgSql + ' RETURNING id';
       }
-      const rs = await pool.query(execSql, params);
+      const rs = await getPool().query(execSql, params);
       let lastInsertRowid = undefined;
       if (rs.rows.length && rs.rows[0].id != null) {
         lastInsertRowid = Number(rs.rows[0].id);
@@ -70,11 +75,11 @@ function prepare(sql) {
 }
 
 async function exec(sql) {
-  await pool.query(sql);
+  await getPool().query(sql);
 }
 
 async function runBatch(statements) {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   const results = [];
   try {
     await client.query('BEGIN');
@@ -99,15 +104,14 @@ async function ensureSchema() {
   if (schemaReady) return schemaReady;
   schemaReady = (async () => {
     const statements = splitStatements(SCHEMA_SQL);
-    const client = await pool.connect();
+    const client = await getPool().connect();
     try {
-      await client.query('BEGIN');
       for (const s of statements) {
         await client.query(s);
       }
-      await client.query('COMMIT');
     } catch (e) {
-      await client.query('ROLLBACK');
+      console.error('[db] schema error:', e.message);
+      schemaReady = null;
       throw e;
     } finally {
       client.release();
@@ -297,4 +301,4 @@ CREATE TABLE IF NOT EXISTS public.art_templates (
 );
 `;
 
-module.exports = { pool, prepare, exec, runBatch, ensureSchema };
+module.exports = { getPool, prepare, exec, runBatch, ensureSchema };
