@@ -39,7 +39,7 @@ app.use(async (req, res, next) => {
   } catch (e) {
     schemaPromise = null;
     console.error('[schema] erro ao inicializar:', e.message);
-    res.status(500).json({ error: 'Erro ao inicializar o banco de dados' });
+    res.status(500).json({ error: 'Erro ao inicializar o banco de dados', detail: e.message });
   }
 });
 

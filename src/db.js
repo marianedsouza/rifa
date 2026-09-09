@@ -17,8 +17,10 @@ let _pool = null;
 function getPool() {
   if (_pool) return _pool;
   const url = process.env.DATABASE_URL || '';
-  if (!url) {
-    throw new Error('DATABASE_URL não configurada. Defina DATABASE_URL nas variáveis de ambiente.');
+  if (!url || url.includes('COLE_AQUI') || url.includes('[YOUR-PASSWORD]')) {
+    throw new Error(
+      'DATABASE_URL não configurada corretamente no ambiente. Defina a connection string do Supabase PostgreSQL (formato: postgresql://postgres.[ref]:[senha]@aws-0-...pooler.supabase.com:6543/postgres)'
+    );
   }
   _pool = new Pool({
     connectionString: url,
