@@ -732,23 +732,29 @@ router.post('/admin/rifas/:id/cash-sale', requireAuth, requireRole('super_admin'
 
   const price = calculatePrice(r, nums.length);
   const method = String(b.method || 'dinheiro');
+  const manualStatus = String(b.status || 'paid') === 'pending' ? 'pending' : 'approved';
+  const numStatus = manualStatus === 'pending' ? 'reserved' : 'paid';
   const code = util.genCode('PED', 6);
   const oIns = await db.prepare(`
     INSERT INTO orders (rifa_id, participant_id, code, status, qty, unit_price, discount, total)
-    VALUES (?,?,?,'approved',?,?,?,?)
-  `).run(r.id, pid, code, nums.length, r.price, price.discount, price.total);
+    VALUES (?,?,?,?,?,?,?,?)
+  `).run(r.id, pid, code, manualStatus, nums.length, r.price, price.discount, price.total);
   const oid = oIns.lastInsertRowid;
 
   const stmts = [];
   for (const row of rows) {
     stmts.push({ sql: 'INSERT INTO order_numbers (order_id, numero_id, rifa_id, number) VALUES (?,?,?,?)', args: [oid, row.id, r.id, row.number] });
-    stmts.push({ sql: "UPDATE rifa_numeros SET status='paid', order_id=?, participant_id=?, sold_at=NOW()::text WHERE id=? AND status='available'", args: [oid, pid, row.id] });
+    stmts.push({ sql: manualStatus === 'pending'
+      ? "UPDATE rifa_numeros SET status='reserved', order_id=?, participant_id=? WHERE id=? AND status='available'"
+      : "UPDATE rifa_numeros SET status='paid', order_id=?, participant_id=?, sold_at=NOW()::text WHERE id=? AND status='available'",
+      args: [oid, pid, row.id] });
   }
-  stmts.push({ sql: "INSERT INTO payments (order_id, method, status, amount, admin_confirm) VALUES (?,?,?,?, 1)", args: [oid, method, 'approved', price.total] });
+  stmts.push({ sql: "INSERT INTO payments (order_id, method, status, amount, admin_confirm) VALUES (?,?,?,?,?)",
+    args: [oid, method, manualStatus === 'pending' ? 'pending' : 'approved', price.total, manualStatus === 'pending' ? 0 : 1] });
   await db.runBatch(stmts);
-  await logAction(req.user.id, 'order.cash', { rifa: r.id, code, qty: nums.length, total: price.total, method });
+  await logAction(req.user.id, 'order.cash', { rifa: r.id, code, qty: nums.length, total: price.total, method, status: manualStatus });
 
-  ok(res, { ok: true, code }, 201);
+  ok(res, { ok: true, code, status: manualStatus }, 201);
 }));
 
 /* ============ ADMIN: PARTICIPANTES ============ */

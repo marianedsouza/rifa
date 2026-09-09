@@ -856,19 +856,25 @@ async function toggleBlock(numId) {
 /* ---- Venda manual (em dinheiro) ---- */
 let cashSaleSelected = new Set();
 let cashGridCache = [];
+let cashSaleMode = 'paid';
 
 async function openCashSale(id) {
   const [j, rifa] = await Promise.all([
-    apiGet(`/api/admin/rifas/${id}/numeros?status=available`),
+    apiGet(`/api/admin/rifas/${id}/numeros?status=all`),
     apiGet('/api/admin/rifas/' + id)
   ]);
   cashGridCache = j.numbers;
   cashSaleSelected = new Set();
+  cashSaleMode = 'paid';
   window._cashRifa = rifa;
   showModal(`
-    <div class="modal-head"><h3>💵 Venda em dinheiro</h3><button onclick="closeModal()">×</button></div>
+    <div class="modal-head"><h3>💵 Registrar número manualmente</h3><button onclick="closeModal()">×</button></div>
     <div class="modal-body">
-      <p class="hint mb">Clique nos números para vincular ao participante. O pagamento pode ser em dinheiro, PIX no local ou cartão.</p>
+      <p class="hint mb">Clique nos números para vincular ao participante. Números em <span class="chip paid">verde</span> já estão pagos/em uso, em <span class="chip reserved">amarelo</span> estão reservados (pendentes).</p>
+      <div class="flex mb cs-mode">
+        <button id="csModePaid" class="btn sm primary" onclick="setCashSaleMode('paid')">💵 Paga agora</button>
+        <button id="csModePending" class="btn sm outline" onclick="setCashSaleMode('pending')">⏳ Pendente (vai pagar depois)</button>
+      </div>
       <div class="flex mb">
         <input id="csSearch" placeholder="Buscar número..." style="flex:1;min-width:0;padding:9px 12px;border:1px solid var(--line);border-radius:8px" oninput="renderCashGrid()">
         <button class="btn outline sm" onclick="cashPickRandom()">🎲 sorteio automático</button>
@@ -888,10 +894,18 @@ async function openCashSale(id) {
           <option value="pix">PIX (no local)</option>
           <option value="cartao">Cartão</option>
         </select>
-        <button class="btn primary" onclick="executeCashSale(${id})">Confirmar venda</button>
+        <button id="csConfirmBtn" class="btn primary" onclick="executeCashSale(${id})">Confirmar venda</button>
       </div>
     </div>`, false);
   renderCashGrid();
+}
+
+function setCashSaleMode(mode) {
+  cashSaleMode = mode;
+  const a = $('csModePaid'), b = $('csModePending'), btn = $('csConfirmBtn');
+  if (a) a.className = 'btn sm ' + (mode === 'paid' ? 'primary' : 'outline');
+  if (b) b.className = 'btn sm ' + (mode === 'pending' ? 'primary' : 'outline');
+  if (btn) btn.textContent = mode === 'pending' ? 'Registrar como pendente' : 'Confirmar venda';
 }
 
 function renderCashGrid() {
@@ -901,6 +915,9 @@ function renderCashGrid() {
   let list = cashGridCache;
   if (q) list = list.filter(n => String(n.number).includes(q) || padNum(n.number, 300).includes(q));
   grid.innerHTML = list.map(n => {
+    if (n.status === 'paid' || n.status === 'reserved' || n.status === 'blocked' || n.status === 'expired') {
+      return `<div class="ncell ${n.status}" style="cursor:not-allowed">${padNum(n.number, 300)}</div>`;
+    }
     const sel = cashSaleSelected.has(n.number);
     return `<div class="ncell available" data-num="${n.number}" style="cursor:pointer;${sel ? 'border-color:var(--brand);background:var(--brand-2);font-weight:800' : ''}" onclick="cashToggle(${n.number})">${padNum(n.number, 300)}</div>`;
   }).join('') || '<div class="empty">Nenhum número disponível</div>';
@@ -955,11 +972,12 @@ async function executeCashSale(id) {
       city: $('csCity')?.value.trim(),
       state: $('csUf')?.value.trim()
     },
-    method: $('csMethod')?.value || 'dinheiro'
+    method: $('csMethod')?.value || 'dinheiro',
+    status: cashSaleMode
   };
   try {
     const r = await apiPost('/api/admin/rifas/' + id + '/cash-sale', body);
-    toast('Venda registrada! Pedido ' + r.code);
+    toast(cashSaleMode === 'pending' ? ('Números reservados! Pedido ' + r.code + ' aguardando pagamento.') : ('Venda registrada! Pedido ' + r.code));
     closeModal();
     loadAdminNumbers(id);
   } catch (e) { toast(e.message); }
