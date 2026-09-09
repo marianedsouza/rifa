@@ -1,12 +1,6 @@
 -- Migration: Dados iniciais (seed)
 -- Rode DEPOIS da migration 001 no Supabase SQL Editor
-
--- Usuários admin
-INSERT INTO public.users (name, email, password_hash, role)
-VALUES
-  ('Administrador', 'admin@rifa.com', 'seed_placeholder_hash', 'super_admin'),
-  ('Operador', 'operador@rifa.com', 'seed_placeholder_hash', 'operator')
-ON CONFLICT (email) DO NOTHING;
+-- NOTA: Usuários devem ser criados via Supabase Dashboard > Authentication
 
 -- Configurações padrão da plataforma
 INSERT INTO public.settings (key, value) VALUES

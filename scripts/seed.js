@@ -10,8 +10,7 @@ async function main() {
     console.log('Banco já possui dados. Seed ignorado.');
   } else {
     console.log('Seed concluído!');
-    console.log('  Admin:    admin@rifa.com / admin123');
-    console.log('  Operador: operador@rifa.com / operador123');
+    console.log('  Crie os usuários no Supabase Dashboard > Authentication');
     console.log('  Rifa demo: /r/rifa-do-bem');
   }
   process.exit(0);

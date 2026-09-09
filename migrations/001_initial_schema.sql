@@ -1,16 +1,6 @@
 -- Migration: Criação do schema inicial
 -- Rode este SQL no Supabase SQL Editor: https://supabase.com/dashboard/project/_/sql/new
-
--- Usuários do sistema (admins e operadores)
-CREATE TABLE IF NOT EXISTS public.users (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'admin',
-  active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
-);
+-- NOTA: Usuários são gerenciados pelo Supabase Auth (auth.users)
 
 -- Campanhas de arrecadação
 CREATE TABLE IF NOT EXISTS public.campaigns (
@@ -165,7 +155,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 -- Logs de ações
 CREATE TABLE IF NOT EXISTS public.logs (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER,
+  user_id TEXT,
   action TEXT DEFAULT '',
   details TEXT DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text

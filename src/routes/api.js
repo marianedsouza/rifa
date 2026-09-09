@@ -1,7 +1,7 @@
 const express = require('express');
 const QRCode = require('qrcode');
 const db = require('../db');
-const { sign, requireAuth, requireRole, logAction, publicUser } = require('../auth');
+const { sign, requireAuth, requireRole, logAction, publicUser, normalizeUser, parseUserMeta } = require('../auth');
 const util = require('../util');
 
 const router = express.Router();
@@ -356,12 +356,17 @@ router.post('/public/order/:code/confirm-sim', h(async (req, res) => {
 
 router.post('/admin/login', h(async (req, res) => {
   const { email, password } = req.body || {};
-  const user = await db.prepare('SELECT * FROM users WHERE email=?').get(String(email || '').toLowerCase().trim());
-  if (!user || !util.verifyPassword(password || '', user.password_hash)) {
+  const user = await db.prepare('SELECT * FROM auth.users WHERE email=?').get(String(email || '').toLowerCase().trim());
+  if (!user) {
     return res.status(401).json({ error: 'E-mail ou senha inválidos' });
   }
-  if (!user.active) return res.status(403).json({ error: 'Usuário inativo' });
-  const token = sign({ uid: user.id, role: user.role });
+  const valid = await bcrypt.compare(String(password || ''), user.encrypted_password || '');
+  if (!valid) {
+    return res.status(401).json({ error: 'E-mail ou senha inválidos' });
+  }
+  const n = normalizeUser(user);
+  if (!n.active) return res.status(403).json({ error: 'Usuário inativo' });
+  const token = sign({ uid: user.id, role: n.role });
   await logAction(user.id, 'login', { email });
   ok(res, { token, user: publicUser(user) });
 }));
@@ -880,7 +885,11 @@ router.get('/admin/reports/:type', requireAuth, h(async (req, res) => {
 /* ============ ADMIN: USUÁRIOS ============ */
 
 router.get('/admin/users', requireAuth, requireRole('super_admin'), h(async (req, res) => {
-  ok(res, await db.prepare('SELECT id, name, email, role, active, created_at FROM users ORDER BY id').all());
+  const rows = await db.prepare(`
+    SELECT id, email, raw_user_meta_data, raw_app_meta_data, created_at, last_sign_in_at
+    FROM auth.users ORDER BY created_at ASC
+  `).all();
+  ok(res, rows.map(r => normalizeUser(r)));
 }));
 
 router.post('/admin/users', requireAuth, requireRole('super_admin'), h(async (req, res) => {
@@ -888,28 +897,51 @@ router.post('/admin/users', requireAuth, requireRole('super_admin'), h(async (re
   if (!String(b.name || '').trim() || !util.isValidEmail(b.email)) return res.status(400).json({ error: 'Nome e e-mail válido são obrigatórios' });
   if (String(b.password || '').length < 6) return res.status(400).json({ error: 'Senha deve ter ao menos 6 caracteres' });
   const email = b.email.toLowerCase().trim();
-  if (await db.prepare('SELECT id FROM users WHERE email=?').get(email)) return res.status(400).json({ error: 'E-mail já cadastrado' });
-  const ins = await db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?,?,?,?)').run(
-    b.name.trim(), email, util.hashPassword(b.password), b.role || 'operator'
-  );
-  const id = ins.lastInsertRowid;
-  await logAction(req.user.id, 'user.create', { id });
-  ok(res, await db.prepare('SELECT id, name, email, role, active FROM users WHERE id=?').get(id), 201);
+  const existing = await db.prepare('SELECT id FROM auth.users WHERE email=?').get(email);
+  if (existing) return res.status(400).json({ error: 'E-mail já cadastrado' });
+
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return res.status(500).json({ error: 'Supabase não configurado para criar usuários' });
+  }
+
+  const resp = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+    },
+    body: JSON.stringify({
+      email,
+      password: b.password,
+      email_confirm: true,
+      user_metadata: { name: b.name.trim(), role: b.role || 'operator', active: true },
+    }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) return res.status(400).json({ error: data.msg || data.error_description || 'Erro ao criar usuário' });
+  await logAction(req.user.id, 'user.create', { id: data.id, email });
+  ok(res, normalizeUser(data), 201);
 }));
 
 router.put('/admin/users/:id', requireAuth, requireRole('super_admin'), h(async (req, res) => {
-  const u = await db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id);
+  const u = await db.prepare('SELECT * FROM auth.users WHERE id=?').get(req.params.id);
   if (!u) return res.status(404).json({ error: 'Usuário não encontrado' });
   const b = req.body || {};
-  if (b.password) {
-    if (String(b.password).length < 6) return res.status(400).json({ error: 'Senha deve ter ao menos 6 caracteres' });
-    await db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(util.hashPassword(b.password), u.id);
-  }
-  if (b.name) await db.prepare('UPDATE users SET name=? WHERE id=?').run(String(b.name).trim(), u.id);
-  if (b.role) await db.prepare('UPDATE users SET role=? WHERE id=?').run(String(b.role), u.id);
-  if (typeof b.active === 'boolean') await db.prepare('UPDATE users SET active=? WHERE id=?').run(b.active ? 1 : 0, u.id);
+  const meta = parseUserMeta(u.raw_user_meta_data);
+
+  if (b.name) meta.name = String(b.name).trim();
+  if (b.role) meta.role = String(b.role);
+  if (typeof b.active === 'boolean') meta.active = b.active;
+
+  await db.prepare('UPDATE auth.users SET raw_user_meta_data=? WHERE id=?').run(
+    JSON.stringify(meta), u.id
+  );
   await logAction(req.user.id, 'user.update', { id: u.id });
-  ok(res, await db.prepare('SELECT id, name, email, role, active FROM users WHERE id=?').get(u.id));
+  const updated = await db.prepare('SELECT * FROM auth.users WHERE id=?').get(u.id);
+  ok(res, normalizeUser(updated));
 }));
 
 /* ============ ADMIN: LOGS E CONFIGURAÇÕES ============ */

@@ -128,16 +128,6 @@ function splitStatements(sql) {
 }
 
 const SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS public.users (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'admin',
-  active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
-);
-
 CREATE TABLE IF NOT EXISTS public.campaigns (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
@@ -280,7 +270,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 
 CREATE TABLE IF NOT EXISTS public.logs (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER,
+  user_id TEXT,
   action TEXT DEFAULT '',
   details TEXT DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text

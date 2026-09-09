@@ -1,18 +1,12 @@
 const db = require('./db');
-const { hashPassword, buildPix, genCode } = require('./util');
+const { buildPix, genCode } = require('./util');
 
 // Popula o banco com dados de demonstração. Idempotente: se já houver
-// usuários, não faz nada (retorna { skipped: true }).
+// campanhas, não faz nada (retorna { skipped: true }).
+// Usuários são gerenciados pelo Supabase Auth.
 async function seedDatabase() {
-  const count = (await db.prepare('SELECT COUNT(*) AS c FROM users').get()).c;
+  const count = (await db.prepare('SELECT COUNT(*) AS c FROM campaigns').get()).c;
   if (count > 0) return { skipped: true };
-
-  await db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?,?,?,?)').run(
-    'Administrador', 'admin@rifa.com', hashPassword('admin123'), 'super_admin'
-  );
-  await db.prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?,?,?,?)').run(
-    'Operador', 'operador@rifa.com', hashPassword('operador123'), 'operator'
-  );
 
   const now = new Date();
   const drawDate = new Date(now.getTime() + 30 * 86400000).toISOString().slice(0, 10);
