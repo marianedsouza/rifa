@@ -96,7 +96,7 @@ async function expireReservations() {
   for (const r of rows) {
     await db.runBatch([
       { sql: "UPDATE rifa_numeros SET status='available', order_id=NULL, participant_id=NULL, sold_at=NULL WHERE order_id=?", args: [r.id] },
-      { sql: "UPDATE orders SET status='expired', updated_at=datetime('now') WHERE id=?", args: [r.id] },
+      { sql: "UPDATE orders SET status='expired', updated_at=NOW()::text WHERE id=?", args: [r.id] },
       { sql: "UPDATE payments SET status='expired' WHERE order_id=? AND status='pending'", args: [r.id] },
     ]);
   }

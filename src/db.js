@@ -1,24 +1,16 @@
-const { createClient } = require('@libsql/client');
+const { Pool } = require('pg');
 
-// Suporta tanto os nomes usados no .env (rifa_TURSO_*) quanto os padrões TURSO_*
-const URL =
-  process.env.TURSO_DATABASE_URL ||
-  process.env.rifa_TURSO_DATABASE_URL ||
-  '';
-const AUTH_TOKEN =
-  process.env.TURSO_AUTH_TOKEN ||
-  process.env.rifa_TURSO_AUTH_TOKEN ||
-  '';
+const DATABASE_URL = process.env.DATABASE_URL || '';
 
-if (!URL) {
+if (!DATABASE_URL || DATABASE_URL === 'COLE_AQUI_SUA_CONNECTION_STRING_DO_SUPABASE') {
   throw new Error(
-    'TURSO_DATABASE_URL não configurada. Defina TURSO_DATABASE_URL (ou rifa_TURSO_DATABASE_URL) nas variáveis de ambiente.'
+    'DATABASE_URL não configurada. Defina DATABASE_URL nas variáveis de ambiente com a connection string do Supabase PostgreSQL.'
   );
 }
 
-const client = createClient({
-  url: URL,
-  authToken: AUTH_TOKEN || undefined,
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
 /*
@@ -30,54 +22,98 @@ const client = createClient({
  *   db.prepare(sql).run(...args)   -> { lastInsertRowid, changes }
  *   db.exec(sqlOuComando)          -> executa SQL cru
  *
- * O libSQL/Turso é sempre assíncrono, então get/all/run/exec agora
- * retornam Promises e devem ser usados com await.
+ * Agora usamos PostgreSQL (pg) com placeholders $1, $2, etc.
+ * Esta camada converte automaticamente ? -> $1, $2, ... e mantém a mesma API.
  */
 
+function convertPlaceholders(sql) {
+  let idx = 0;
+  return sql.replace(/\?/g, () => '$' + (++idx));
+}
+
 function normalizeArgs(args) {
-  // Aceita tanto .get(a, b, c) quanto .get([a, b, c])
   if (args.length === 1 && Array.isArray(args[0])) return args[0];
   return args;
 }
 
 function prepare(sql) {
+  const pgSql = convertPlaceholders(sql);
   return {
     async get(...args) {
-      const rs = await client.execute({ sql, args: normalizeArgs(args) });
-      return rs.rows.length ? rowToObject(rs.rows[0]) : undefined;
+      const params = normalizeArgs(args);
+      const rs = await pool.query(pgSql, params);
+      return rs.rows.length ? rs.rows[0] : undefined;
     },
     async all(...args) {
-      const rs = await client.execute({ sql, args: normalizeArgs(args) });
-      return rs.rows.map(rowToObject);
+      const params = normalizeArgs(args);
+      const rs = await pool.query(pgSql, params);
+      return rs.rows;
     },
     async run(...args) {
-      const rs = await client.execute({ sql, args: normalizeArgs(args) });
+      const params = normalizeArgs(args);
+      const isInsert = /^\s*INSERT\s+/i.test(sql);
+      let execSql = pgSql;
+      if (isInsert && !/\bRETURNING\b/i.test(sql)) {
+        execSql = pgSql + ' RETURNING id';
+      }
+      const rs = await pool.query(execSql, params);
+      let lastInsertRowid = undefined;
+      if (rs.rows.length && rs.rows[0].id != null) {
+        lastInsertRowid = Number(rs.rows[0].id);
+      }
       return {
-        lastInsertRowid:
-          rs.lastInsertRowid != null ? Number(rs.lastInsertRowid) : undefined,
-        changes: rs.rowsAffected,
+        lastInsertRowid,
+        changes: rs.rowCount,
       };
     },
   };
 }
 
-// As rows do libSQL são objetos "array-like" com getters por coluna.
-// Convertendo para objeto simples para o resto do código funcionar igual.
-function rowToObject(row) {
-  const obj = {};
-  for (const key of Object.keys(row)) obj[key] = row[key];
-  return obj;
+async function exec(sql) {
+  await pool.query(sql);
 }
 
-// Executa SQL cru. Aceita múltiplos statements separados por ';'.
-async function exec(sql) {
-  const statements = splitStatements(sql);
-  if (statements.length <= 1) {
-    await client.execute(sql);
-    return;
+async function runBatch(statements) {
+  const client = await pool.connect();
+  const results = [];
+  try {
+    await client.query('BEGIN');
+    for (const s of statements) {
+      const stmt = typeof s === 'string' ? { sql: s, args: [] } : { sql: s.sql, args: s.args || [] };
+      const pgSql = convertPlaceholders(stmt.sql);
+      const rs = await client.query(pgSql, stmt.args);
+      results.push({ rowsAffected: rs.rowCount, rows: rs.rows });
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
   }
-  // batch em modo sequencial mantém a ordem sem transação implícita agressiva
-  await client.batch(statements, 'write');
+  return results;
+}
+
+let schemaReady = null;
+async function ensureSchema() {
+  if (schemaReady) return schemaReady;
+  schemaReady = (async () => {
+    const statements = splitStatements(SCHEMA_SQL);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const s of statements) {
+        await client.query(s);
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  })();
+  return schemaReady;
 }
 
 function splitStatements(sql) {
@@ -87,55 +123,27 @@ function splitStatements(sql) {
     .filter(Boolean);
 }
 
-/*
- * Transações: no libSQL serverless não usamos BEGIN/COMMIT interativos.
- * Em vez disso, agrupamos os comandos numa lista e chamamos runBatch(),
- * que executa tudo atomicamente (equivalente a uma transação).
- *
- * Uso:
- *   await runBatch([
- *     { sql: '...', args: [...] },
- *     { sql: '...', args: [...] },
- *   ]);
- */
-async function runBatch(statements) {
-  const stmts = statements.map((s) =>
-    typeof s === 'string' ? { sql: s, args: [] } : { sql: s.sql, args: s.args || [] }
-  );
-  return client.batch(stmts, 'write');
-}
-
-let schemaReady = null;
-async function ensureSchema() {
-  if (schemaReady) return schemaReady;
-  schemaReady = (async () => {
-    const statements = splitStatements(SCHEMA_SQL);
-    await client.batch(statements, 'write');
-  })();
-  return schemaReady;
-}
-
 const SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.users (
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'admin',
   active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
 
-CREATE TABLE IF NOT EXISTS campaigns (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.campaigns (
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT DEFAULT '',
   status TEXT NOT NULL DEFAULT 'active',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
 
-CREATE TABLE IF NOT EXISTS rifas (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.rifas (
+  id SERIAL PRIMARY KEY,
   campaign_id INTEGER,
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
@@ -168,11 +176,11 @@ CREATE TABLE IF NOT EXISTS rifas (
   status TEXT NOT NULL DEFAULT 'draft',
   reserve_minutes INTEGER NOT NULL DEFAULT 10,
   draw_id TEXT DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
 
-CREATE TABLE IF NOT EXISTS visual_settings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.visual_settings (
+  id SERIAL PRIMARY KEY,
   rifa_id INTEGER NOT NULL UNIQUE,
   primary_color TEXT DEFAULT '#6A1E2C',
   secondary_color TEXT DEFAULT '#F7F6F3',
@@ -185,8 +193,8 @@ CREATE TABLE IF NOT EXISTS visual_settings (
   logo_campaign TEXT DEFAULT ''
 );
 
-CREATE TABLE IF NOT EXISTS rifa_numeros (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.rifa_numeros (
+  id SERIAL PRIMARY KEY,
   rifa_id INTEGER NOT NULL,
   number INTEGER NOT NULL,
   status TEXT NOT NULL DEFAULT 'available',
@@ -196,8 +204,8 @@ CREATE TABLE IF NOT EXISTS rifa_numeros (
   UNIQUE(rifa_id, number)
 );
 
-CREATE TABLE IF NOT EXISTS participants (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.participants (
+  id SERIAL PRIMARY KEY,
   rifa_id INTEGER NOT NULL,
   name TEXT NOT NULL,
   cpf TEXT NOT NULL,
@@ -205,11 +213,11 @@ CREATE TABLE IF NOT EXISTS participants (
   email TEXT DEFAULT '',
   city TEXT DEFAULT '',
   state TEXT DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
 
-CREATE TABLE IF NOT EXISTS orders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.orders (
+  id SERIAL PRIMARY KEY,
   rifa_id INTEGER NOT NULL,
   participant_id INTEGER NOT NULL,
   code TEXT NOT NULL UNIQUE,
@@ -219,34 +227,34 @@ CREATE TABLE IF NOT EXISTS orders (
   discount REAL NOT NULL DEFAULT 0,
   total REAL NOT NULL,
   expires_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text,
+  updated_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
 
-CREATE TABLE IF NOT EXISTS order_numbers (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.order_numbers (
+  id SERIAL PRIMARY KEY,
   order_id INTEGER NOT NULL,
   numero_id INTEGER NOT NULL,
   rifa_id INTEGER NOT NULL,
   number INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS payments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.payments (
+  id SERIAL PRIMARY KEY,
   order_id INTEGER NOT NULL,
   method TEXT NOT NULL DEFAULT 'pix',
   status TEXT NOT NULL DEFAULT 'pending',
   amount REAL NOT NULL,
   pix_brcode TEXT DEFAULT '',
   pix_qr TEXT DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text,
   expires_at TEXT,
   paid_at TEXT,
   admin_confirm INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS draws (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.draws (
+  id SERIAL PRIMARY KEY,
   rifa_id INTEGER NOT NULL,
   numero_id INTEGER NOT NULL,
   number INTEGER NOT NULL,
@@ -254,39 +262,39 @@ CREATE TABLE IF NOT EXISTS draws (
   participant_cpf_masked TEXT DEFAULT '',
   draw_code TEXT NOT NULL UNIQUE,
   admin_id INTEGER,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
 
-CREATE TABLE IF NOT EXISTS notifications (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id SERIAL PRIMARY KEY,
   type TEXT DEFAULT 'info',
   title TEXT DEFAULT '',
   message TEXT DEFAULT '',
   read INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
 
-CREATE TABLE IF NOT EXISTS logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.logs (
+  id SERIAL PRIMARY KEY,
   user_id INTEGER,
   action TEXT DEFAULT '',
   details TEXT DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
 
-CREATE TABLE IF NOT EXISTS settings (
+CREATE TABLE IF NOT EXISTS public.settings (
   key TEXT PRIMARY KEY,
   value TEXT DEFAULT ''
 );
 
-CREATE TABLE IF NOT EXISTS art_templates (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS public.art_templates (
+  id SERIAL PRIMARY KEY,
   rifa_id INTEGER NOT NULL,
   name TEXT DEFAULT '',
   type TEXT DEFAULT 'square',
   config TEXT DEFAULT '{}',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
 `;
 
-module.exports = { client, prepare, exec, runBatch, ensureSchema };
+module.exports = { pool, prepare, exec, runBatch, ensureSchema };

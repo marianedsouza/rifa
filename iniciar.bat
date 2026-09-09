@@ -7,7 +7,6 @@ if %errorlevel% neq 0 (
   exit /b
 )
 if not exist node_modules npm install
-if not exist data\rifa.db npm run seed
 start "" http://localhost:3000
 node server.js
 pause

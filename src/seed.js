@@ -92,14 +92,14 @@ async function seedDatabase() {
     const n = paidNums[i];
     const pid = participants[rnd(0, participants.length - 1)];
     const code = genCode('P', 6);
-    const oIns = await db.prepare("INSERT INTO orders (rifa_id, participant_id, code, status, qty, unit_price, discount, total, updated_at) VALUES (?,?,?,?,?,?,?,?,datetime('now'))")
+    const oIns = await db.prepare("INSERT INTO orders (rifa_id, participant_id, code, status, qty, unit_price, discount, total, updated_at) VALUES (?,?,?,?,?,?,?,?,NOW()::text)")
       .run(rifaId, pid, code, 'approved', 1, 10, 0, 10);
     const oid = oIns.lastInsertRowid;
     const soldAt = new Date(Date.now() - rnd(1, 20) * 86400000).toISOString();
     await db.runBatch([
       { sql: 'INSERT INTO order_numbers (order_id, numero_id, rifa_id, number) VALUES (?,?,?,?)', args: [oid, n.id, rifaId, n.number] },
       { sql: 'UPDATE rifa_numeros SET status=?, order_id=?, participant_id=?, sold_at=? WHERE id=?', args: ['paid', oid, pid, soldAt, n.id] },
-      { sql: "INSERT INTO payments (order_id, method, status, amount, pix_brcode, pix_qr, paid_at) VALUES (?,?,?,?,?,?,datetime('now'))", args: [oid, 'pix', 'approved', 10, '', ''] },
+      { sql: "INSERT INTO payments (order_id, method, status, amount, pix_brcode, pix_qr, paid_at) VALUES (?,?,?,?,?,?,NOW()::text)", args: [oid, 'pix', 'approved', 10, '', ''] },
     ]);
   }
 
@@ -114,7 +114,7 @@ async function seedDatabase() {
     await db.runBatch([
       { sql: 'INSERT INTO order_numbers (order_id, numero_id, rifa_id, number) VALUES (?,?,?,?)', args: [oid, n.id, rifaId, n.number] },
       { sql: 'UPDATE rifa_numeros SET status=?, order_id=?, participant_id=?, sold_at=? WHERE id=?', args: ['reserved', oid, pid, new Date(Date.now() - 2 * 60000).toISOString(), n.id] },
-      { sql: "UPDATE orders SET expires_at=datetime('now', '+8 minutes') WHERE id=?", args: [oid] },
+      { sql: "UPDATE orders SET expires_at=(NOW() + INTERVAL '8 minutes')::text WHERE id=?", args: [oid] },
     ]);
   }
 

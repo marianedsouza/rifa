@@ -76,7 +76,7 @@ async function expireReservationsForRifa(rifaId) {
   const stmts = [];
   for (const o of rows) {
     stmts.push({ sql: "UPDATE rifa_numeros SET status='available', order_id=NULL, participant_id=NULL, sold_at=NULL WHERE order_id=?", args: [o.id] });
-    stmts.push({ sql: "UPDATE orders SET status='expired', updated_at=datetime('now') WHERE id=?", args: [o.id] });
+    stmts.push({ sql: "UPDATE orders SET status='expired', updated_at=NOW()::text WHERE id=?", args: [o.id] });
     stmts.push({ sql: "UPDATE payments SET status='expired' WHERE order_id=? AND status='pending'", args: [o.id] });
   }
   await db.runBatch(stmts);
@@ -292,7 +292,7 @@ router.post('/public/rifa/:slug/reserve', h(async (req, res) => {
       args: [oid, n.id, r.id, n.number]
     });
     stmts.push({
-      sql: "UPDATE rifa_numeros SET status='reserved', order_id=?, participant_id=?, sold_at=datetime('now') WHERE id=? AND status='available'",
+      sql: "UPDATE rifa_numeros SET status='reserved', order_id=?, participant_id=?, sold_at=NOW()::text WHERE id=? AND status='available'",
       args: [oid, pid, n.id]
     });
   });
@@ -306,7 +306,7 @@ router.post('/public/rifa/:slug/reserve', h(async (req, res) => {
     await db.runBatch([
       { sql: "UPDATE rifa_numeros SET status='available', order_id=NULL, participant_id=NULL, sold_at=NULL WHERE order_id=?", args: [oid] },
       { sql: 'DELETE FROM order_numbers WHERE order_id=?', args: [oid] },
-      { sql: "UPDATE orders SET status='cancelled', updated_at=datetime('now') WHERE id=?", args: [oid] },
+      { sql: "UPDATE orders SET status='cancelled', updated_at=NOW()::text WHERE id=?", args: [oid] },
     ]);
     return res.status(409).json({
       error: 'Alguns números já não estão mais disponíveis',
@@ -345,8 +345,8 @@ router.post('/public/order/:code/confirm-sim', h(async (req, res) => {
   if (o.status === 'expired') return res.status(400).json({ error: 'Pagamento expirado' });
 
   await db.runBatch([
-    { sql: "UPDATE orders SET status='approved', updated_at=datetime('now') WHERE id=?", args: [o.id] },
-    { sql: "UPDATE payments SET status='approved', paid_at=datetime('now') WHERE order_id=? AND status='pending'", args: [o.id] },
+    { sql: "UPDATE orders SET status='approved', updated_at=NOW()::text WHERE id=?", args: [o.id] },
+    { sql: "UPDATE payments SET status='approved', paid_at=NOW()::text WHERE order_id=? AND status='pending'", args: [o.id] },
     { sql: "UPDATE rifa_numeros SET status='paid' WHERE order_id=?", args: [o.id] },
   ]);
   ok(res, { status: 'approved' });
@@ -391,7 +391,7 @@ router.get('/admin/dashboard', requireAuth, h(async (req, res) => {
   }
 
   const salesByDay = await db.prepare(`
-    SELECT substr(sold_at, 1, 10) AS day, COUNT(*) AS c
+    SELECT LEFT(sold_at, 10) AS day, COUNT(*) AS c
     FROM rifa_numeros WHERE status='paid' GROUP BY day ORDER BY day
   `).all();
 
@@ -443,7 +443,7 @@ router.get('/admin/rifas/:id/dashboard', requireAuth, h(async (req, res) => {
   const revenue = (await db.prepare("SELECT COALESCE(SUM(total),0) AS s FROM orders WHERE rifa_id=? AND status='approved'").get(r.id)).s;
   const participants = (await db.prepare("SELECT COUNT(DISTINCT participant_id) AS c FROM orders WHERE rifa_id=? AND status='approved'").get(r.id)).c;
   const salesByDay = await db.prepare(`
-    SELECT substr(sold_at,1,10) AS day, COUNT(*) AS c FROM rifa_numeros
+    SELECT LEFT(sold_at,10) AS day, COUNT(*) AS c FROM rifa_numeros
     WHERE rifa_id=? AND status='paid' GROUP BY day ORDER BY day
   `).all(r.id);
   const recentOrders = await db.prepare(`
@@ -674,8 +674,8 @@ router.post('/admin/orders/:id/confirm', requireAuth, requireRole('super_admin',
   const o = await db.prepare('SELECT * FROM orders WHERE id=?').get(req.params.id);
   if (!o) return res.status(404).json({ error: 'Pedido não encontrado' });
   await db.runBatch([
-    { sql: "UPDATE orders SET status='approved', updated_at=datetime('now') WHERE id=?", args: [o.id] },
-    { sql: "UPDATE payments SET status='approved', paid_at=datetime('now') WHERE order_id=? AND status='pending'", args: [o.id] },
+    { sql: "UPDATE orders SET status='approved', updated_at=NOW()::text WHERE id=?", args: [o.id] },
+    { sql: "UPDATE payments SET status='approved', paid_at=NOW()::text WHERE order_id=? AND status='pending'", args: [o.id] },
     { sql: "UPDATE rifa_numeros SET status='paid' WHERE order_id=?", args: [o.id] },
   ]);
   await logAction(req.user.id, 'order.confirm', { order: o.code });
@@ -687,7 +687,7 @@ router.post('/admin/orders/:id/cancel', requireAuth, requireRole('super_admin', 
   if (!o) return res.status(404).json({ error: 'Pedido não encontrado' });
   await db.runBatch([
     { sql: "UPDATE rifa_numeros SET status='available', order_id=NULL, participant_id=NULL, sold_at=NULL WHERE order_id=?", args: [o.id] },
-    { sql: "UPDATE orders SET status='cancelled', updated_at=datetime('now') WHERE id=?", args: [o.id] },
+    { sql: "UPDATE orders SET status='cancelled', updated_at=NOW()::text WHERE id=?", args: [o.id] },
     { sql: "UPDATE payments SET status='cancelled' WHERE order_id=? AND status='pending'", args: [o.id] },
   ]);
   await logAction(req.user.id, 'order.cancel', { order: o.code });
@@ -736,7 +736,7 @@ router.post('/admin/rifas/:id/cash-sale', requireAuth, requireRole('super_admin'
   const stmts = [];
   for (const row of rows) {
     stmts.push({ sql: 'INSERT INTO order_numbers (order_id, numero_id, rifa_id, number) VALUES (?,?,?,?)', args: [oid, row.id, r.id, row.number] });
-    stmts.push({ sql: "UPDATE rifa_numeros SET status='paid', order_id=?, participant_id=?, sold_at=datetime('now') WHERE id=? AND status='available'", args: [oid, pid, row.id] });
+    stmts.push({ sql: "UPDATE rifa_numeros SET status='paid', order_id=?, participant_id=?, sold_at=NOW()::text WHERE id=? AND status='available'", args: [oid, pid, row.id] });
   }
   stmts.push({ sql: "INSERT INTO payments (order_id, method, status, amount, admin_confirm) VALUES (?,?,?,?, 1)", args: [oid, method, 'approved', price.total] });
   await db.runBatch(stmts);
@@ -819,7 +819,7 @@ router.get('/admin/reports/:type', requireAuth, h(async (req, res) => {
     const orderWhere = rifaId ? ' WHERE o.rifa_id=?' : '';
     rows = (await db.prepare(`
       SELECT o.code, r.name AS rifa, p.name, p.cpf, p.whatsapp,
-        (SELECT GROUP_CONCAT(n.number) FROM order_numbers n WHERE n.order_id=o.id) AS nums,
+        (SELECT STRING_AGG(CAST(n.number AS TEXT), ',') FROM order_numbers n WHERE n.order_id=o.id) AS nums,
         o.qty, o.total, o.status, o.created_at
       FROM orders o JOIN participants p ON p.id=o.participant_id JOIN rifas r ON r.id=o.rifa_id
     ` + orderWhere).all(...whereArgs)).map(r => [r.code, r.rifa, r.name, r.cpf, r.whatsapp, r.nums, r.qty, r.total, r.status, r.created_at]);
@@ -858,7 +858,7 @@ router.get('/admin/reports/:type', requireAuth, h(async (req, res) => {
     headers = ['Pedido', 'Participante', 'Números', 'Qtd', 'Total', 'Expira', 'Status'];
     rows = (await db.prepare(`
       SELECT o.code, p.name,
-        (SELECT GROUP_CONCAT(n.number) FROM order_numbers n WHERE n.order_id=o.id) AS nums,
+        (SELECT STRING_AGG(CAST(n.number AS TEXT), ',') FROM order_numbers n WHERE n.order_id=o.id) AS nums,
         o.qty, o.total, o.expires_at, o.status
       FROM orders o JOIN participants p ON p.id=o.participant_id
       WHERE o.status IN ('pending','expired')

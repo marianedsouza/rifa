@@ -9,9 +9,9 @@
     "seed": "node scripts/seed.js"
   },
   "dependencies": {
-    "@libsql/client": "^0.15.4",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "pg": "^8.23.0",
     "qrcode": "^1.5.4"
   }
 }
