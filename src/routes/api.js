@@ -1,5 +1,6 @@
 const express = require('express');
 const QRCode = require('qrcode');
+const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { sign, requireAuth, requireRole, logAction, publicUser, normalizeUser, parseUserMeta } = require('../auth');
 const util = require('../util');

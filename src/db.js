@@ -105,7 +105,7 @@ let schemaReady = null;
 async function ensureSchema() {
   if (schemaReady) return schemaReady;
   schemaReady = (async () => {
-    const statements = splitStatements(SCHEMA_SQL);
+    const statements = splitStatements(SCHEMA_SQL).concat(splitStatements(SCHEMA_ALTERS));
     const client = await getPool().connect();
     try {
       for (const s of statements) {
@@ -291,6 +291,12 @@ CREATE TABLE IF NOT EXISTS public.art_templates (
   config TEXT DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
+`;
+
+// Ajustes idempotentes de colunas já existentes (mudanças de tipo).
+const SCHEMA_ALTERS = `
+ALTER TABLE public.logs ALTER COLUMN user_id TYPE TEXT;
+ALTER TABLE public.draws ALTER COLUMN admin_id TYPE TEXT;
 `;
 
 module.exports = { getPool, prepare, exec, runBatch, ensureSchema };

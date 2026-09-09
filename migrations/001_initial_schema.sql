@@ -176,3 +176,7 @@ CREATE TABLE IF NOT EXISTS public.art_templates (
   config TEXT DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')::text
 );
+
+-- Ajustes para UUID (auth.users usa UUID em vez de INTEGER)
+ALTER TABLE IF EXISTS public.logs ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+ALTER TABLE IF EXISTS public.draws ALTER COLUMN admin_id TYPE TEXT USING admin_id::text;
