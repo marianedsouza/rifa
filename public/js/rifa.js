@@ -456,6 +456,7 @@ function submitReserve() {
     hideLoading();
     paymentOrder = r.code;
     openPayment(r);
+    loadNumbers();
   }).catch(e => {
     hideLoading();
     if (e.message.startsWith('Os números')) {
@@ -479,8 +480,8 @@ function openPayment(r) {
     <div class="modal-body pix-box">
       <div class="countdown-badge">⏳ Reserva expira em <b id="pixCount">${RIFA.reserve_minutes}:00</b></div>
       <p style="margin-bottom:12px">Escaneie o QR Code <b>ou copie o código PIX</b> abaixo e pague <b>${money(r.total)}</b>.</p>
-      <div class="pix-qr"><img id="pixQR" src="/img/loading.png"></div>
-      <div class="pix-brcode" id="pixBrcode">Carregando código PIX...</div>
+      <div class="pix-qr"><img id="pixQR" src="${pix.qr || '/img/loading.png'}"></div>
+      <div class="pix-brcode" id="pixBrcode">${pix.brcode || 'Carregando código PIX...'}</div>
       <button class="btn outline sm" onclick="copyBrcode()">Copiar código PIX (copia e cola)</button>
       ${pix.payee || pix.key ? `
       <div class="pix-recipient">

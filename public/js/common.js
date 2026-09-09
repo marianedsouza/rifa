@@ -1,46 +1,46 @@
 window.API = {
+  async request(url, opts) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 25000);
+    try {
+      const r = await fetch(url, opts ? { ...opts, signal: ctrl.signal } : { signal: ctrl.signal });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Erro na requisição');
+      return j;
+    } catch (e) {
+      if (e.name === 'AbortError') throw new Error('A conexão demorou demais. Tente novamente.');
+      throw e;
+    } finally {
+      clearTimeout(t);
+    }
+  },
   async get(url) {
-    const r = await fetch(url);
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || 'Erro na requisição');
-    return j;
+    return this.request(url);
   },
   async post(url, body) {
-    const r = await fetch(url, {
+    return this.request(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body || {})
     });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || 'Erro na requisição');
-    return j;
   },
   async put(url, body) {
-    const r = await fetch(url, {
+    return this.request(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body || {})
     });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || 'Erro na requisição');
-    return j;
   },
   async patch(url, body) {
-    const r = await fetch(url, {
+    return this.request(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body || {})
     });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || 'Erro na requisição');
-    return j;
   },
   async del(url) {
-    const r = await fetch(url, { method: 'DELETE' });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || 'Erro na requisição');
-    return j;
-  }
+    return this.request(url, { method: 'DELETE' });
+  },
 };
 
 window.money = v => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

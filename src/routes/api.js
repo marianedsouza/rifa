@@ -335,7 +335,7 @@ router.post('/public/rifa/:slug/reserve', h(async (req, res) => {
     VALUES (?,?,?,?,?,?,?)
   `).run(oid, 'pix', 'pending', price.total, brcode, qr, expires);
 
-  ok(res, { code, expires_at: expires, qty: numbers.length, total: price.total, discount: price.discount, pix: { key: pixKey, type: await getSetting('pix_type', 'email'), payee: pixPayee, bank: pixBank } }, 201);
+  ok(res, { code, expires_at: expires, qty: numbers.length, total: price.total, discount: price.discount, pix: { key: pixKey, type: await getSetting('pix_type', 'email'), payee: pixPayee, bank: pixBank, qr, brcode } }, 201);
 }));
 
 router.post('/public/order/:code/confirm-sim', h(async (req, res) => {

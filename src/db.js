@@ -26,6 +26,10 @@ function getPool() {
     connectionString: url,
     ssl: { rejectUnauthorized: false },
     max: 5,
+    connectionTimeoutMillis: 8000,
+    statement_timeout: 20000,
+    query_timeout: 20000,
+    idleTimeoutMillis: 30000,
   });
   _pool.on('error', (err) => {
     console.error('[db] pool error:', err.message);
