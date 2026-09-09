@@ -489,7 +489,11 @@ function openPayment(r) {
         ${pix.bank ? '<div class="pr-row"><span>Banco</span><b>' + escX(pix.bank) + '</b></div>' : ''}
       </div>` : ''}
       <div class="mt-16" id="pixStatus"><span class="spinner"></span> Aguardando confirmação do pagamento...</div>
-      <p class="hint" style="font-size:12px;opacity:.7;margin-top:10px">Após pagar, envie o comprovante pelo WhatsApp abaixo — a organização confirma seus números rapidinho.</p>
+      <p class="hint" style="font-size:12px;opacity:.7;margin-top:10px">Após pagar, envie o comprovante para quem te contatou — a organização confirma seus números rapidinho.</p>
+      <div class="field mt-8">
+        <label>WhatsApp de quem te contatou (prospector)</label>
+        <input id="prospWa" placeholder="(11) 99999-9999" oninput="maskPhoneInput(this)" maxlength="16">
+      </div>
       <button class="btn success block mt-8" onclick="sendComprovante('${r.code}')">💬 Enviar comprovante pelo WhatsApp</button>
       <button class="btn accent block mt-8" onclick="simulatePay()">Já fiz o pagamento (simulação)</button>
     </div>`);
@@ -504,8 +508,9 @@ function openPayment(r) {
 }
 
 function sendComprovante(code) {
-  const wa = RIFA.org_whatsapp ? String(RIFA.org_whatsapp).replace(/\D/g, '') : '';
-  if (!wa) { flash('WhatsApp da organização não cadastrado.'); return; }
+  const prospector = $('prospWa') ? String($('prospWa').value).replace(/\D/g, '') : '';
+  const wa = prospector || (RIFA.org_whatsapp ? String(RIFA.org_whatsapp).replace(/\D/g, '') : '');
+  if (!wa) { flash('Informe o WhatsApp de quem te contatou.'); return; }
   const msg = 'Olá! Acabei de fazer o PIX da minha participação na ' + RIFA.name +
     ' (pedido ' + code + ', valor ' + money(paymentTotal) + '). ' +
     'Segue o comprovante do pagamento. Obrigado!';
